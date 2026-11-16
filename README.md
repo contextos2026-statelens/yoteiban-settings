@@ -11,10 +11,11 @@
 - `skills/adjust/SKILL.md`：予定調整（【調整の考え方】を含む）
 - `skills/interval/SKILL.md`：確認間隔の学習
 - `skills/setup/SKILL.md`：初回設定
+- `skills/selftest/SKILL.md`：自己試験（本人とのチャットでは質問カードで聞く、という短い試験）
 - `persona.md`：予定ばんの人格の文（一般用）
 - `VERSION`：いまの版の番号
 - `CHANGELOG.md`：版ごとの変更
-- 試験用のスキルは入れていません。
+- 自己試験は、`skills/selftest/SKILL.md` の短い試験を足して行います。すでに持っている試験は消しません。
 
 ## 予定ばんのコピーが、自分を更新するやり方
 1. 週に1回、このリポジトリの `VERSION` と `CHANGELOG.md` を読む。
