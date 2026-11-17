@@ -17,6 +17,24 @@ description: 予定ばん（再設計版）が、すぐ知らせるか朝のま�
 4. 余裕が1時間以内 → 今すぐ。「次の朝のまとめ＋2時間」より前 → 今日中。遅れるほど取り返せない重いもの（体・お金・契約・資格・席）で24時間以内 → 今日中。その日のうちに動くもの → 朝一番。それ以外 → ふつう。
 5. 登録外で時刻が文面に無い → 急ぎにしない（朝一番まで）。登録外か推測の時刻 → 1段下げる。体・安全・(c) は下げない。
 
+## `urgency` の入力の項目（intake スキルに最小の例）
+
+| 項目 | 既定 | 意味 |
+|---|---|---|
+| item.title | 必須 | 1行の名前 |
+| item.time | null | 開始か期限（時間帯つき）。無ければ保留 |
+| item.travel_min / prep_min | null | 移動・準備の分。無ければ計算係が推定し `estimated` を立てる |
+| item.for_owner / needs_action | true | 本人あてか／本人が動く必要があるか |
+| item.already_known | false | 本人がもう知っている |
+| item.family_emergency / body_safety | false | 家族・近い人の急変／体・安全 |
+| item.time_in_text / registered_source | true | 時刻が文面にあるか／信頼する出どころか |
+| item.impact | [] | 体・安全・お金・契約・資格・席・他人を待たせる・学業の締切 から |
+| item.irreversible / light | false | 取り返せない／軽い（念押し不要） |
+| context.now / next_summary | 必須 | 今／次の朝のまとめ |
+| context.quiet_start_hour / quiet_end_hour | 22 / 7 | 静かな時間（記憶の値を渡す） |
+| context.night_setting | urgent_only | urgent_only（朝まで待てないものも夜に1回）／safety_only |
+| context.remind | day_once | day_once（昼だけ1回念押し）／none |
+
 ## 知らせ方
 
 - 今すぐ・今日中：昼はすぐ1通。夜は「夜の通知」の設定に従う（記憶）。朝まで待つと間に合わないものだけ夜に1回。

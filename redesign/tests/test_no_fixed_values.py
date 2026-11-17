@@ -49,3 +49,20 @@ class NoFixedValues(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoStorePaths(unittest.TestCase):
+    """ボット固有ストアの ID や置き場所を、Git に入るどのファイルにも書かない（GIT_MANIFEST.md も含む）。"""
+
+    def test_no_store_ids(self):
+        pat = re.compile("/cursor" + "/stores|store-[0-9a-f]{8}-[0-9a-f]{4}")
+        bad = []
+        for d, ds, fs in os.walk(ROOT):
+            ds[:] = [x for x in ds if x not in SKIP_DIRS and not x.startswith(".")]
+            for f in fs:
+                if f.startswith(".") or f.endswith((".pyc", ".jsonl", ".db")):
+                    continue
+                p = os.path.join(d, f)
+                if pat.search(open(p, encoding="utf-8", errors="ignore").read()):
+                    bad.append(os.path.relpath(p, ROOT))
+        self.assertEqual(bad, [])

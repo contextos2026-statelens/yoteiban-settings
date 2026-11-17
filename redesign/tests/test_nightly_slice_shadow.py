@@ -1,3 +1,4 @@
+import os
 import unittest
 import _paths  # noqa
 from yoteiban_rd.calc import Event, parse_time as T
@@ -48,6 +49,21 @@ class SliceTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             slice_for("unknown", self.SAMPLE)
         self.assertEqual(slice_for("notify", "## 2. x\n")["missing"], [19, 20])
+
+    def test_urgency_tasks_have_ch19_20(self):
+        # 急ぎの段階を決める仕事（intake・notify・nightly）は 19・20章を必ず読む（試験Bで欠けていた）
+        for t in ("intake", "notify", "nightly"):
+            self.assertIn(19, TASK_CHAPTERS[t], t)
+            self.assertIn(20, TASK_CHAPTERS[t], t)
+        self.assertIn(20, TASK_CHAPTERS["write"])  # 型による自動追加の範囲
+
+    def test_skill_chapter_text_matches_map(self):
+        import re
+        for t, d in (("intake", "intake"), ("notify", "notify"), ("nightly", "nightly"), ("write", "write"), ("delegate", "delegate")):
+            txt = open(os.path.join(_paths.ROOT, "skills", d, "SKILL.md"), encoding="utf-8").read()
+            m = re.search(r"--task " + t + r"`（([\d・]+)章）", txt)
+            self.assertIsNotNone(m, t)
+            self.assertEqual([int(x) for x in m.group(1).split("・")], TASK_CHAPTERS[t], t)
 
     def test_every_task_has_principles(self):
         for t, ch in TASK_CHAPTERS.items():

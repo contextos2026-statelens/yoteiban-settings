@@ -30,5 +30,30 @@ class CliTest(unittest.TestCase):
         self.assertEqual(rc, 2)
 
 
+class CliErrorTest(unittest.TestCase):
+    def test_missing_keys_give_clear_error_not_traceback(self):
+        cases = [({}, "item"), ({"item": {"title": "x"}}, "context"), ({"item": {}, "context": {}}, "title"),
+                 ({"item": {"title": "x"}, "context": {"now": "2026-11-20 10:00 JST"}}, "next_summary"),
+                 ({"item": {"title": "x", "tiem": "a"}, "context": {"now": "2026-11-20 10:00 JST", "next_summary": "2026-11-21 07:00 JST"}}, "tiem"),
+                 ([], "オブジェクト")]
+        for data, word in cases:
+            p = subprocess.run([sys.executable, "-m", "yoteiban_rd.cli", "urgency"], input=json.dumps(data),
+                               capture_output=True, text=True, env=ENV)
+            self.assertEqual(p.returncode, 2, data)
+            self.assertNotIn("Traceback", p.stderr + p.stdout)
+            out = json.loads(p.stdout)
+            self.assertIn(word, out["error"])
+            self.assertIn("example", out)
+
+    def test_documented_example_runs(self):
+        import re
+        txt = open(os.path.join(_paths.ROOT, "skills", "intake", "SKILL.md"), encoding="utf-8").read()
+        block = re.search(r"```json\n(.*?)```", txt, re.S).group(1)
+        rc, out = run("urgency", json.loads(block))
+        self.assertEqual(rc, 0)
+        self.assertIn(out["tier"], ("今すぐ", "今日中"))
+        self.assertEqual(out["deliver"], "now")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -18,7 +18,43 @@ def _ev(d: dict) -> Event:
                  location=d.get("location"), all_day=d.get("all_day", False), meta=d.get("meta", {}))
 
 
+URGENCY_EXAMPLE = {
+    "item": {"title": "通院の時刻が早まった", "time": "2026-11-19 08:45 JST", "travel_min": 30, "prep_min": 25},
+    "context": {"now": "2026-11-18 21:30 JST", "next_summary": "2026-11-19 07:00 JST"},
+}
+_ITEM_KEYS = set(Item.__dataclass_fields__)
+_CTX_KEYS = set(Context.__dataclass_fields__)
+
+
+class InputError(ValueError):
+    pass
+
+
+def _need(data, key: str, where: str) -> dict:
+    if not isinstance(data, dict):
+        raise InputError(f"{where}はJSONのオブジェクトにしてください")
+    if key not in data:
+        raise InputError(f"{where}に「{key}」がありません")
+    v = data[key]
+    if not isinstance(v, dict):
+        raise InputError(f"「{key}」はJSONのオブジェクトにしてください")
+    return v
+
+
+def _check_urgency(data) -> None:
+    it, ctx = _need(data, "item", "入力"), _need(data, "context", "入力")
+    if "title" not in it:
+        raise InputError("item に「title」がありません")
+    for k in ("now", "next_summary"):
+        if k not in ctx:
+            raise InputError(f"context に「{k}」がありません")
+    bad = sorted(set(it) - _ITEM_KEYS) + sorted(set(ctx) - _CTX_KEYS)
+    if bad:
+        raise InputError("知らない項目があります: " + ", ".join(bad))
+
+
 def cmd_urgency(data: dict) -> dict:
+    _check_urgency(data)
     it = dict(data["item"])
     if it.get("time"):
         it["time"] = parse_time(it["time"])
@@ -60,7 +96,16 @@ def main(argv=None) -> int:
     try:
         data = json.load(sys.stdin)
         out = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": cmd_nightly}[a.task](data)
-    except (CalcError, KeyError, TypeError, ValueError) as e:
+    except InputError as e:
+        out = {"error": str(e)}
+        if a.task == "urgency":
+            out["example"] = URGENCY_EXAMPLE
+        print(json.dumps(out, ensure_ascii=False))
+        return 2
+    except KeyError as e:
+        print(json.dumps({"error": f"入力に {e} がありません"}, ensure_ascii=False))
+        return 2
+    except (CalcError, TypeError, ValueError) as e:
         print(json.dumps({"error": str(e)}, ensure_ascii=False))
         return 2
     print(json.dumps(out, ensure_ascii=False, indent=1))
