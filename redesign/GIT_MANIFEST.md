@@ -8,17 +8,17 @@
 
 | リポジトリ内の場所 | git hash-object |
 |---|---|
-| redesign/DESIGN.md | 30375cdc5655698dca9c5b0a75ec487b8b46edf1 |
+| redesign/DESIGN.md | 495641d7507e9c15938ba9c45ca3c81222c70964 |
 | redesign/README.md | d5df2996471cf1187fa92738bfd2f9a1f7f94bc2 |
 | redesign/config/settings.example.json | 892d9b0dc97ab4881d9655427a846f136c23ca3e |
 | redesign/lib/yoteiban_rd/__init__.py | ed569e6be5d8efe0247bb7626e9c0c7dd7b3ecd0 |
 | redesign/lib/yoteiban_rd/calc.py | 82489dfee13abfcc63820653268d3ea193c4110a |
-| redesign/lib/yoteiban_rd/cli.py | 1cb3d294e84f55163578ef991323819ffd8ff10f |
+| redesign/lib/yoteiban_rd/cli.py | d0f22245ce7231dc31a4d04d18e7c88e5ec2ddbe |
 | redesign/lib/yoteiban_rd/nightly.py | e126897b8d9097ebe6b9b2ceae9eaaa7d81037e6 |
 | redesign/lib/yoteiban_rd/rules_slice.py | 9fb5b39ed0472664b3f991fe48b24eaff7bf242c |
 | redesign/lib/yoteiban_rd/send_flow.py | 1ff242531b053f0a6b262b65ba7e4f0397661c01 |
 | redesign/lib/yoteiban_rd/shadow.py | 3b9658ba016e41b3689aceb09cbee113995a1862 |
-| redesign/lib/yoteiban_rd/urgency.py | 68ceff7fc495cb61b8a19c48031e2e121e599a6a |
+| redesign/lib/yoteiban_rd/urgency.py | fbef677ce40695e76dcdbccd34f2048ddedb3802 |
 | redesign/mac/INSTALL.md | aecebd9326fc3739a257ff1dd9fe6b9964141236 |
 | redesign/mac/config.example.json | fae0917fd9e54f324d2926bcdbdb1347dbecf1d7 |
 | redesign/mac/launchd.plist.template | 3c13adb62af362f8b29350c828314ae2ad768168 |
@@ -31,16 +31,16 @@
 | redesign/mac/yoteiban_watch/waker.py | b6aec8cc927a02defe4c54cce5dbf584361064f4 |
 | redesign/skills/core/SKILL.md | 06664a571bad15fac6f3f478ed397a98a608ecf2 |
 | redesign/skills/delegate/SKILL.md | 5c5002e7fcf0fbecb70f89c433e035521e8e99af |
-| redesign/skills/intake/SKILL.md | db45c42ee88b0c6d4935ec798fe343312e3309f2 |
+| redesign/skills/intake/SKILL.md | 72ebdfb9be8f90c1b1d24e411d7657ccc2c7a4cf |
 | redesign/skills/nightly/SKILL.md | ccbd43cc9db398f54119e344ca5a120345283ecf |
-| redesign/skills/notify/SKILL.md | e0ff918a29fcd4b1191032a68385e74ca403e7aa |
+| redesign/skills/notify/SKILL.md | 557ae104be736f60b8defa9daacc8c8468fc5d97 |
 | redesign/skills/write/SKILL.md | 592f594e756a12f8406bf99ed11c74d3e63eaf6d |
 | redesign/tests/_paths.py | c4d30c9384587831c67fe8f344ad27de63adc4f2 |
-| redesign/tests/test_calc_urgency.py | dad5184f264537d0835b176bd832cbd923e8d010 |
-| redesign/tests/test_cli.py | 1f72a3fcb060a1d400f61066571881d22641f778 |
+| redesign/tests/test_calc_urgency.py | f6596c7f31044ba691d88f1a9a0185cd34cf9b4f |
+| redesign/tests/test_cli.py | 7fabfffd9067903bea365c84b58f3888ca4350de |
 | redesign/tests/test_mac.py | 8773219febfc177429529f589b8a8f01a4fce79d |
 | redesign/tests/test_nightly_slice_shadow.py | 90dddf41a1cfa6398828678bf9b1e485e87b079d |
-| redesign/tests/test_no_fixed_values.py | 9f19f4ed785180e169d1cb388d190583750e167d |
+| redesign/tests/test_no_fixed_values.py | 17f87e1eb296a211ab1474f2dad48f4bf6cf4bfd |
 | redesign/tests/test_send_flow.py | b056fac3a67185aa0fa588026b7016a3a5c79e95 |
 
 ## 入れないもの
@@ -50,5 +50,5 @@
 
 ## 注意
 - テストは tools/stage2/delegation.py を使う（redesign/../tools/stage2/）。seihon.md は redesign/../seihon.md を探し、無ければ環境変数 YRD_SEIHON か箱の写し。リポジトリで seihon.md の場所が違えば YRD_SEIHON を渡す。
-- 実行：cd redesign && python3 -m unittest discover -s tests（45件）。
+- 実行：cd redesign && python3 -m unittest discover -s tests（51件）。
 - PR の題の案：再設計版（完成形1）の試作を redesign/ に追加（本番は変えない）

@@ -19,7 +19,7 @@ def _ev(d: dict) -> Event:
 
 
 URGENCY_EXAMPLE = {
-    "item": {"title": "通院の時刻が早まった", "time": "2026-11-19 08:45 JST", "travel_min": 30, "prep_min": 25},
+    "item": {"title": "通院の時刻が早まった（駅で待ち合わせ）", "time": "2026-11-19 08:20 JST", "travel_min": 30},
     "context": {"now": "2026-11-18 21:30 JST", "next_summary": "2026-11-19 07:00 JST"},
 }
 _ITEM_KEYS = set(Item.__dataclass_fields__)
@@ -61,6 +61,8 @@ def cmd_urgency(data: dict) -> dict:
     it["impact"] = set(it.get("impact", []))
     ctx = dict(data["context"])
     ctx["now"], ctx["next_summary"] = parse_time(ctx["now"]), parse_time(ctx["next_summary"])
+    if ctx.get("next_delivery"):
+        ctx["next_delivery"] = parse_time(ctx["next_delivery"])
     d = decide(Item(**it), Context(**ctx))
     out = asdict(d)
     for k in ("action_deadline", "remind_at"):

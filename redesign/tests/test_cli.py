@@ -51,8 +51,10 @@ class CliErrorTest(unittest.TestCase):
         block = re.search(r"```json\n(.*?)```", txt, re.S).group(1)
         rc, out = run("urgency", json.loads(block))
         self.assertEqual(rc, 0)
-        self.assertIn(out["tier"], ("今すぐ", "今日中"))
-        self.assertEqual(out["deliver"], "now")
+        self.assertEqual((out["tier"], out["deliver"]), ("今すぐ", "now"))
+        self.assertEqual(out["action_deadline"], "2026-11-19 07:50 JST")
+        self.assertEqual(out["slack_min"], 50)
+        self.assertTrue(out["estimated"])
 
 
 if __name__ == "__main__":

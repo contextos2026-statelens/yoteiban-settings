@@ -63,6 +63,8 @@ class NoStorePaths(unittest.TestCase):
                 if f.startswith(".") or f.endswith((".pyc", ".jsonl", ".db")):
                     continue
                 p = os.path.join(d, f)
-                if pat.search(open(p, encoding="utf-8", errors="ignore").read()):
+                with open(p, encoding="utf-8", errors="ignore") as fh:
+                    found = pat.search(fh.read())
+                if found:
                     bad.append(os.path.relpath(p, ROOT))
         self.assertEqual(bad, [])

@@ -4,6 +4,7 @@ import _paths  # noqa
 from yoteiban_rd.calc import (CalcError, Event, parse_time, find_conflicts, find_duplicates, free_slots,
                               latest_action_time, travel_check, event_from_google)
 from yoteiban_rd.urgency import Context, Item, Notifier, decide
+from yoteiban_rd.calc import fmt
 
 T = parse_time
 
@@ -114,3 +115,87 @@ class UrgencyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SpeedTestB2Cases(unittest.TestCase):
+    """速さの試験B2の3件（架空）。朝のまとめ 7:00、夜は急ぎだけ、型3。"""
+
+    def ctx(self, now, **k):
+        return Context(now=T(now), next_summary=T("2026-11-19 07:00 JST"), **k)
+
+    def test_case1_record_only(self):
+        d = decide(Item("お礼とあいさつ", related=False), self.ctx("2026-11-18 21:30 JST"))
+        self.assertEqual((d.tier, d.deliver), ("急ぎにしない", "log"))
+
+    def test_case2_importance_mid_type3_day(self):
+        c = self.ctx("2026-11-18 10:00 JST", next_delivery=T("2026-11-18 18:00 JST"))
+        it = Item("習い事の振替", time=T("2026-12-06 14:00 JST"))
+        self.assertEqual(decide(it, c).tier, "ふつう")  # 時刻だけなら余裕十分
+        it.importance_score = 3  # 動かせない時刻 +3 → 中
+        d = decide(it, c)
+        self.assertEqual((d.tier, d.deliver, d.level), ("今日中", "next_delivery", "中"))
+        # 夜なら朝のまとめの先頭へ（段階も合わせて下げる）
+        d = decide(Item("習い事の振替", time=T("2026-12-06 14:00 JST"), importance="中"), self.ctx("2026-11-18 23:00 JST"))
+        self.assertEqual((d.tier, d.deliver), ("朝一番", "morning_top"))
+        # 型4では中は即時にしない
+        d = decide(Item("習い事の振替", time=T("2026-12-06 14:00 JST"), importance="中"), self.ctx("2026-11-18 10:00 JST", notify_type=4))
+        self.assertEqual(d.tier, "ふつう")
+
+    def test_case3_meeting_moved_earlier(self):
+        d = decide(Item("通院が早まった・駅で待ち合わせ", time=T("2026-11-19 08:20 JST"), travel_min=30, impact={"体"}),
+                   self.ctx("2026-11-18 21:30 JST"))
+        self.assertEqual((d.tier, d.deliver), ("今すぐ", "now"))
+        self.assertEqual(fmt(d.action_deadline), "2026-11-19 07:50 JST")  # 準備は足さない
+        self.assertEqual(d.slack_min, 50)
+        self.assertTrue(d.estimated)
+        self.assertEqual(d.assumed, {"prep_min": 0})
+        self.assertTrue(any("準備" in r and "推定" in r for r in d.reasons))
+        # 同じ件を静かな時間（23:00）に見つけても、夜も即時1回
+        d = decide(Item("同上", time=T("2026-11-19 08:20 JST"), travel_min=30), self.ctx("2026-11-18 23:00 JST"))
+        self.assertEqual((d.tier, d.deliver), ("今すぐ", "now"))
+        # 夜は鳴らさない設定なら、段階を下げて朝の先頭
+        d = decide(Item("同上", time=T("2026-11-19 08:20 JST"), travel_min=30), self.ctx("2026-11-18 23:00 JST", night_setting="safety_only"))
+        self.assertEqual((d.tier, d.deliver), ("朝一番", "morning_top"))
+
+
+class UrgencyRulesTest(unittest.TestCase):
+    def test_importance_precedence_takes_higher(self):
+        c = Context(now=T("2026-11-18 10:00 JST"), next_summary=T("2026-11-19 07:00 JST"))
+        far = T("2026-11-25 10:00 JST")
+        self.assertEqual(decide(Item("x", time=far, travel_min=0, prep_min=0, importance="緊急"), c).tier, "今すぐ")
+        self.assertEqual(decide(Item("x", time=far, travel_min=0, prep_min=0, cannot_wait=True), c).tier, "今すぐ")
+        self.assertEqual(decide(Item("x", time=far, travel_min=0, prep_min=0, importance="高"), c).deliver, "now")
+        self.assertEqual(decide(Item("x", time=far, travel_min=0, prep_min=0, importance="低"), c).tier, "ふつう")
+        self.assertEqual(decide(Item("x", time=far, travel_min=0, prep_min=0, importance_score=9), c).level, "緊急")
+        # 時刻のほうが高ければ時刻（低い重要度で下げない）
+        near = T("2026-11-18 10:40 JST")
+        self.assertEqual(decide(Item("x", time=near, travel_min=0, prep_min=0, importance="低"), c).tier, "今すぐ")
+        # 登録外で時刻が文面に無い「待てない」は採らない
+        d = decide(Item("至急", time=far, registered_source=False, time_in_text=False, cannot_wait=True), c)
+        self.assertNotEqual(d.tier, "今すぐ")
+
+    def test_bad_importance(self):
+        c = Context(now=T("2026-11-18 10:00 JST"), next_summary=T("2026-11-19 07:00 JST"))
+        with self.assertRaises(CalcError):
+            decide(Item("x", importance="すごく"), c)
+        with self.assertRaises(CalcError):
+            decide(Item("x"), Context(now=c.now, next_summary=c.next_summary, notify_type=9))
+
+    def test_tier_and_deliver_always_consistent(self):
+        from yoteiban_rd.urgency import TIER_DELIVER
+        base = T("2026-11-18 00:00 JST")
+        n = 0
+        for now_h in (1, 10, 15, 21, 23):
+            now = base + timedelta(hours=now_h)
+            nxt = (now + timedelta(days=1)).replace(hour=7) if now.hour >= 7 else now.replace(hour=7)
+            for typ in (1, 2, 3, 4, 6):
+                for night in ("urgent_only", "safety_only"):
+                    c = Context(now=now, next_summary=nxt, notify_type=typ, night_setting=night)
+                    for off in (20, 50, 90, 200, 600, 1000, 1600, 5000):
+                        for lv in (None, "緊急", "高", "中", "低"):
+                            for reg in (True, False):
+                                d = decide(Item("x", time=now + timedelta(minutes=off), travel_min=0, prep_min=0,
+                                                importance=lv, registered_source=reg), c)
+                                self.assertIn(d.deliver, TIER_DELIVER[d.tier], (now_h, typ, night, off, lv, d))
+                                n += 1
+        self.assertGreater(n, 3000)

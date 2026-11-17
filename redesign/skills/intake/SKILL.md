@@ -16,18 +16,25 @@ description: 予定ばん（再設計版）が、見張り番に起こされた�
 
 ## 計算係 `urgency` の入力（JSON を標準入力で渡す）
 
+予定なし（記録だけ。第8・9章で項目を作らないもの）は `urgency` にかけない。急ぎにしないで記録だけにする。
+
 ```
 cd <redesign/lib> && echo '<JSON>' | python3 -m yoteiban_rd.cli urgency
 ```
 
-いちばん小さい形（時刻はどれも時間帯つき。「JST」か「+09:00」）：
+いちばん小さい形（時刻はどれも時間帯つき。「JST」か「+09:00」）。動く起点の時刻（待ち合わせ・開始・期限）を `time` に入れ、書かれていない所要は入れない：
 
 ```json
-{"item": {"title": "通院の時刻が早まった", "time": "2026-11-19 08:45 JST", "travel_min": 30, "prep_min": 25},
+{"item": {"title": "通院の時刻が早まった（駅で待ち合わせ）", "time": "2026-11-19 08:20 JST", "travel_min": 30},
  "context": {"now": "2026-11-18 21:30 JST", "next_summary": "2026-11-19 07:00 JST"}}
 ```
 
+この答えは `tier` 今すぐ・`deliver` now・`action_deadline` 7:50・`slack_min` 50・`estimated` true（準備の時間が無いので0分で計算）。
+
 - 必ず要る：`item.title`、`context.now`、`context.next_summary`（次の朝のまとめの時刻）。
-- `item.time` は開始か期限。無ければ「ふつう（保留）」になる。ほかの項目と既定は notify スキルの表。
-- 返り値：`tier`（今すぐ／今日中／朝一番／ふつう／急ぎにしない／過ぎていた）、`deliver`（now／morning_top／morning／log）、`reasons`、`action_deadline`、`estimated`、`remind_at`。
+- `item.time` は開始か期限。無ければ「ふつう（保留）」。
+- 移動・準備が書かれていなければ入れない。0分で計算して `estimated` と `assumed` に出す（締切を勝手に早めない）。知らせるときは「準備の時間を入れると、もっと早くなります」と添える。
+- 第19章の点を付けたら `item.importance`（緊急・高・中・低）か `item.importance_score`、「待てない」なら `item.cannot_wait: true` を渡す。時刻の段階と比べて高い方が採られる。
+- 通知の型・夜の設定・静かな時間・次の配信時刻は記憶の値を `context` に渡す（項目は notify スキルの表）。
+- 返り値：`tier`（今すぐ／今日中／朝一番／ふつう／急ぎにしない／過ぎていた）、`deliver`（now／next_delivery／morning_top／morning／log）、`reasons`、`action_deadline`、`slack_min`、`estimated`、`assumed`、`level`、`remind_at`。段階と知らせ方は必ず対応する（今すぐ→now、今日中→now か next_delivery、朝一番→morning_top）。
 - 入力が足りない・知らない項目があると、終了コード2で `{"error": "...", "example": {...}}` を返す。そのときは推測で埋めず、足りない項目を直して出し直す。
