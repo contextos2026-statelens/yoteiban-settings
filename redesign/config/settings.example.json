@@ -1,0 +1,18 @@
+{
+  "_説明": "箱側の設定の例。本物の値は記憶と出どころ設定表にあり、Gitには例だけを置く。",
+  "write_calendar_id": "<書き込み先の個人用カレンダーのID>",
+  "household_calendar_ids": ["<家用カレンダーのID（読むだけ）>"],
+  "quiet_hours": {"start": 22, "end": 7},
+  "morning_summary_time": "07:00",
+  "night_setting": "urgent_only",
+  "remind": "day_once",
+  "goals": ["<目的の一覧（5〜10行）>"],
+  "daily_load_limit_min": null,
+  "tools": {
+    "seihon": "<正本 seihon.md の箱の写しの場所>",
+    "casebook_py": "<tools/stage2/casebook.py の箱の写しの場所>",
+    "delegation_py": "<tools/stage2/delegation.py の箱の写しの場所>",
+    "redesign_lib": "<redesign/lib の箱の写しの場所>"
+  },
+  "shadow": {"enabled": true, "days": 7, "pass": {"missed_by_new": 0, "agreement_min": 0.9, "shadow_output_attempts": 0}}
+}

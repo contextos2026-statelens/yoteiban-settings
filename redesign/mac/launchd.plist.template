@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 置き換える：{LABEL}（例：伝書鳩と別の名前）、{HOME}、{PY}（/usr/bin/python3）。鍵はここに書かず、{HOME}/yoteiban-watch/env から読む。 -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>{LABEL}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string><string>-c</string>
+    <string>set -a; . "{HOME}/yoteiban-watch/env"; set +a; cd "{HOME}/yoteiban-watch/app" &amp;&amp; exec {PY} -m yoteiban_watch.run --config "{HOME}/yoteiban-watch/config.json"</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>{HOME}/yoteiban-watch/state/launchd.out</string>
+  <key>StandardErrorPath</key><string>{HOME}/yoteiban-watch/state/launchd.err</string>
+</dict>
+</plist>

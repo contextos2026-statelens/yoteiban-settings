@@ -1,0 +1,132 @@
+"""見張りの入口。どれも読むだけ。
+- iMessage：chat.db を読み取り専用（mode=ro）で開き、ROWID の読み位置から新着を読む。
+- Gmail・カレンダー：Google を読む道具（gog）を、読む機能だけに絞って呼ぶ。
+  道具の引数は設定で差し替えられる（道具の版で変わるため。実機での確認が要る）。"""
+from __future__ import annotations
+
+import json
+import re
+import sqlite3
+import subprocess
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+
+APPLE_EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)
+
+
+@dataclass
+class Incoming:
+    source: str
+    native_id: str
+    sender: str  # 送り主の識別子（番号・アドレス）。外部AIには渡さない
+    text: str
+    at: str
+    chat: str = ""  # 会話の識別子。外部AIには渡さない
+    is_group: bool = False
+    from_me: bool = False
+    extra: dict = field(default_factory=dict)
+
+
+class SourceError(Exception):
+    """入口が読めない（権限・ファイル無し・道具の失敗）。朝のまとめの「読めていない入口」に出す。"""
+
+
+def _decode_attributed(blob: bytes | None) -> str:
+    """新しい macOS で text が空のときの attributedBody から本文を取り出す（ベストエフォート）。"""
+    if not blob:
+        return ""
+    try:
+        i = blob.index(b"NSString")
+        chunk = blob[i + 8:]
+        j = chunk.index(b"+") + 1
+        n = chunk[j]
+        start = j + 1
+        if n == 0x81:
+            n = int.from_bytes(chunk[j + 1:j + 3], "little")
+            start = j + 3
+        return chunk[start:start + n].decode("utf-8", "replace")
+    except (ValueError, IndexError):
+        return ""
+
+
+def read_imessage(db_path: str, after_rowid: int, limit: int = 200) -> list[Incoming]:
+    try:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+    except sqlite3.Error as e:
+        raise SourceError(f"iMessage を開けません: {e}") from e
+    try:
+        rows = con.execute(
+            """select m.ROWID, m.text, m.attributedBody, m.date, m.is_from_me, coalesce(h.id,''),
+                      coalesce(c.chat_identifier,''), coalesce(c.style,0)
+               from message m left join handle h on h.ROWID=m.handle_id
+               left join chat_message_join cmj on cmj.message_id=m.ROWID
+               left join chat c on c.ROWID=cmj.chat_id
+               where m.ROWID>? order by m.ROWID limit ?""", (after_rowid, limit)).fetchall()
+    except sqlite3.Error as e:
+        raise SourceError(f"iMessage を読めません: {e}") from e
+    finally:
+        con.close()
+    out = []
+    for rowid, text, ab, d, me, handle, chat, style in rows:
+        body = text or _decode_attributed(ab)
+        ts = APPLE_EPOCH + timedelta(seconds=(d or 0) / 1e9 if (d or 0) > 1e12 else (d or 0))
+        out.append(Incoming("imessage", str(rowid), handle, body, ts.isoformat(), chat, style == 43, bool(me)))
+    return out
+
+
+def run_tool(argv: list, service: str, timeout: int = 60) -> object:
+    """読む道具を呼ぶ。道具の機能は --enable-commands で service だけに絞ってあること。
+    送信や変更の語が引数に入っていたら呼ばない。"""
+    bad = {"send", "delete", "create", "update", "modify", "trash", "insert", "patch", "reply", "forward", "move"}
+    if not argv or any(str(a).lower() in bad for a in argv):
+        raise SourceError("読む以外の操作は呼びません")
+    if "--enable-commands" not in argv or argv[argv.index("--enable-commands") + 1:][:1] != [service]:
+        raise SourceError("道具の機能を " + service + " だけに絞っていません")
+    try:
+        p = subprocess.run([str(a) for a in argv], capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise SourceError(f"道具が動きません: {e}") from e
+    if p.returncode != 0:
+        raise SourceError("道具が失敗しました: " + re.sub(r"\s+", " ", p.stderr)[:200])
+    try:
+        return json.loads(p.stdout or "null")
+    except json.JSONDecodeError as e:
+        raise SourceError("道具の出力を読めません") from e
+
+
+def read_gmail(cmd: list[str], after_iso: str | None) -> list[Incoming]:
+    """cmd 例（設定）：["gog","--enable-commands","gmail","-j","--results-only","gmail","search","newer_than:1d"]"""
+    data = run_tool(cmd, "gmail")
+    items = data if isinstance(data, list) else (data or {}).get("messages", []) if isinstance(data, dict) else []
+    out = []
+    for m in items:
+        mid = str(m.get("id") or m.get("messageId") or "")
+        if not mid:
+            continue
+        at = str(m.get("date") or m.get("internalDate") or "")
+        if after_iso and at and at <= after_iso:
+            continue
+        out.append(Incoming("gmail", mid, str(m.get("from", "")), str(m.get("snippet") or m.get("subject") or ""), at,
+                            extra={"subject": str(m.get("subject", ""))}))
+    return out
+
+
+def read_calendar_changes(cmd: list[str], known: dict) -> tuple[list[Incoming], dict]:
+    """予定の一覧を読み、前回の一覧（id→更新時刻）と比べて、増えた・変わった・消えたを出す。"""
+    data = run_tool(cmd, "calendar")
+    evs = data if isinstance(data, list) else (data or {}).get("events", []) if isinstance(data, dict) else []
+    now_map, out = {}, []
+    for e in evs:
+        eid = str(e.get("id", ""))
+        upd = str(e.get("updated", ""))
+        if not eid:
+            continue
+        now_map[eid] = upd
+        if eid not in known:
+            out.append(Incoming("calendar", f"{eid}@{upd}", "", str(e.get("summary", "")), upd, extra={"change": "増えた"}))
+        elif known[eid] != upd:
+            out.append(Incoming("calendar", f"{eid}@{upd}", "", str(e.get("summary", "")), upd, extra={"change": "変わった"}))
+    for eid in known:
+        if eid not in now_map:
+            out.append(Incoming("calendar", f"{eid}@gone", "", "", "", extra={"change": "消えた"}))
+    return out, now_map
