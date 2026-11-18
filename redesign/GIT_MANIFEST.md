@@ -4,7 +4,7 @@
 
 受け渡し場所：ボット固有ストアの redesign-handoff/redesign/。git hash-object の値で照合する。
 
-ファイル数：48（この表）＋ GIT_MANIFEST.md ＝ 49
+ファイル数：49（この表）＋ GIT_MANIFEST.md ＝ 50
 
 | リポジトリ内の場所 | git hash-object |
 |---|---|
@@ -15,8 +15,9 @@
 | redesign/docs/R3_MAPPING.md | 6464620a2d4b8f42f021a087531ac8aa8f0d6947 |
 | redesign/lib/yoteiban_rd/__init__.py | ed569e6be5d8efe0247bb7626e9c0c7dd7b3ecd0 |
 | redesign/lib/yoteiban_rd/calc.py | 995a4d2e22a17fa570efc76f72fb23e1d8aadb38 |
-| redesign/lib/yoteiban_rd/cli.py | 4e59554410833b8cc32bd39b6a1e85ac06df61b2 |
+| redesign/lib/yoteiban_rd/cli.py | d75a2621cdefca9a6f1f3cb7ec1e0e39d5b544ed |
 | redesign/lib/yoteiban_rd/household.py | 82ee296c6cf1ac5979ba9a09e5212315cc55d829 |
+| redesign/lib/yoteiban_rd/latency.py | 2b29f55970094e080bf9f2fa1588543c5b37d361 |
 | redesign/lib/yoteiban_rd/morning.py | 0d8d697a1578f884ec644f8ac4c0aee8d4bc4a9f |
 | redesign/lib/yoteiban_rd/nightly.py | 57bc725ed4389e246afa693219299994743151db |
 | redesign/lib/yoteiban_rd/quick.py | 9c6124db258956c8b8553b88e299049528581a48 |
@@ -36,7 +37,7 @@
 | redesign/mac/yoteiban_watch/store.py | 82583fb8c2c8f808385166db4c4653bb0e3b6329 |
 | redesign/mac/yoteiban_watch/waker.py | b6aec8cc927a02defe4c54cce5dbf584361064f4 |
 | redesign/skills/adjust/SKILL.md | 7773d766b91c185621b55fb6b91095ff6214f0a9 |
-| redesign/skills/chat/SKILL.md | 170a3facdfc216d2bae687bfe113fdf515758380 |
+| redesign/skills/chat/SKILL.md | 135d88e18e9a8c6e2cb5267800b8c919cb559bfc |
 | redesign/skills/common/SKILL.md | 8262e526e2c4e600026b303f45558e2233f1d5bb |
 | redesign/skills/delegate/SKILL.md | 19533dfd8ed398c9887a3b17060291a4c6992d26 |
 | redesign/skills/infer/SKILL.md | 2d617a8504441e4c4eee0df3fc30a37799623eaf |
@@ -54,7 +55,7 @@
 | redesign/tests/test_mac.py | 8773219febfc177429529f589b8a8f01a4fce79d |
 | redesign/tests/test_nightly_slice_shadow.py | ac16ec0cac8d94f462158a42af991a36c3ca684e |
 | redesign/tests/test_no_fixed_values.py | e7f675f9f3d3ce83713ed031b574f2acc5c7c68a |
-| redesign/tests/test_safety_rules.py | 6387afaa27fec481cec521f35a3936c98eec0a19 |
+| redesign/tests/test_safety_rules.py | fedaac2fc9ea3aacf3b94a6719bbddd3953c21a7 |
 | redesign/tests/test_send_flow.py | b056fac3a67185aa0fa588026b7016a3a5c79e95 |
 
 ## 入れないもの
