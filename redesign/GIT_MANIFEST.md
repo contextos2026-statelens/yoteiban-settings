@@ -36,7 +36,7 @@
 | redesign/mac/yoteiban_watch/store.py | 82583fb8c2c8f808385166db4c4653bb0e3b6329 |
 | redesign/mac/yoteiban_watch/waker.py | b6aec8cc927a02defe4c54cce5dbf584361064f4 |
 | redesign/skills/adjust/SKILL.md | 7773d766b91c185621b55fb6b91095ff6214f0a9 |
-| redesign/skills/chat/SKILL.md | 6a6652e89a80e3374ee5f39274ab9a16381d812c |
+| redesign/skills/chat/SKILL.md | 170a3facdfc216d2bae687bfe113fdf515758380 |
 | redesign/skills/common/SKILL.md | 8262e526e2c4e600026b303f45558e2233f1d5bb |
 | redesign/skills/delegate/SKILL.md | 19533dfd8ed398c9887a3b17060291a4c6992d26 |
 | redesign/skills/infer/SKILL.md | 2d617a8504441e4c4eee0df3fc30a37799623eaf |
@@ -54,7 +54,7 @@
 | redesign/tests/test_mac.py | 8773219febfc177429529f589b8a8f01a4fce79d |
 | redesign/tests/test_nightly_slice_shadow.py | ac16ec0cac8d94f462158a42af991a36c3ca684e |
 | redesign/tests/test_no_fixed_values.py | e7f675f9f3d3ce83713ed031b574f2acc5c7c68a |
-| redesign/tests/test_safety_rules.py | fc6b5eb1ab44a86095f84a1c84e4c20873599957 |
+| redesign/tests/test_safety_rules.py | 6387afaa27fec481cec521f35a3936c98eec0a19 |
 | redesign/tests/test_send_flow.py | b056fac3a67185aa0fa588026b7016a3a5c79e95 |
 
 ## 入れないもの

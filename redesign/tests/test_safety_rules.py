@@ -166,7 +166,7 @@ class SkillCoverage(unittest.TestCase):
             "nightly": ["previous", "feedback", "weekly", "suppressed", "当たり外れ", "家用だけ"],
             "setup": ["R10 毎晩の見直し", "記憶の『読む先の一覧』のカレンダーを全部読み"],
             "chat": ["30秒前後", "1〜3分", "5分以内", "1回の並列", "news", "cli diff", "cli free", "last_check.json", "can_say_no_change",
-                     "full_needed", "読み直しの1手を足さない", "安全の線は早道でも同じ", "「未確認」"],
+                     "full_needed", "読み直しの1手を足さない", "並列で呼んでよい", "推測で埋めない", "安全の線は早道でも同じ", "「未確認」"],
             "selftest": ["【X60", "【X64", "【X66", "【X67", "【X68"],
         }
         missing = [(d, s) for d, ss in must.items() for s in ss if s not in self.text(d)]
