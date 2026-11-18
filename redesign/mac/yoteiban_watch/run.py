@@ -104,17 +104,25 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
             store.set_state(rid, "仕分け済み", sort_json=r.__dict__)
             stats[r.decision] += 1
             if r.decision == WAKE:
+                max_body_chars = max(0, int(cfg.get("max_body_chars", 8000)))
+                body_text = (inc.text or "")[:max_body_chars]
                 payload = {"request_id": rid, "source": source, "ref": inc.native_id, "role": role,
                            "sort": {"by": r.by, "related": r.related, "urgent": r.urgent, "to_owner": r.to_owner},
-                           "received_at": inc.at, "kind": "yoteiban-wake"}
+                           "received_at": inc.at, "kind": "yoteiban-wake",
+                           "title": str(inc.extra.get("subject") or inc.extra.get("summary") or "")[:300],
+                           "body_text": body_text}
+                if len(inc.text or "") > max_body_chars:
+                    payload["truncated"] = True
                 if shadow:
-                    log(cfg, {"shadow_wake": payload})
+                    log(cfg, {"request_id": rid, "source": source, "state": "shadow", "chars": len(body_text)})
                     store.set_state(rid, "朝へ", wake_status="shadow")
                 else:
                     res = wake_fn(cfg.get("webhook_url") or os.environ.get("YOTEIBAN_WEBHOOK_URL", ""),
-                                  os.environ.get("YOTEIBAN_WEBHOOK_KEY"), payload)
+                                  os.environ.get("YOTEIBAN_WEBHOOK_KEY"), payload,
+                                  backoff=cfg.get("resend_backoff_s", [30, 120, 600, 1800]))
                     store.set_state(rid, res["state"], wake_status=res, attempt=True)
-                    log(cfg, {"wake": rid, **res})
+                    log(cfg, {"request_id": rid, "source": source, "state": res["state"],
+                              "chars": len(body_text), "attempts": res.get("attempts", 0)})
             else:
                 store.set_state(rid, "朝へ" if r.decision == MORNING else "何もしない")
         # 全件を記録してから読み位置を進める（途中で止まっても取りこぼさない）
