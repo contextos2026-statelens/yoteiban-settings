@@ -15,7 +15,7 @@
     "calendars": [
       {"name": "<個人用カレンダー>", "enabled": false, "cmd": ["gog", "--enable-commands", "calendar", "-j", "--results-only", "-a", "<読むアカウント>", "calendar", "events", "--days", "35"]},
       {"name": "<家用カレンダー（primary）>", "enabled": false, "cmd": ["gog", "--enable-commands", "calendar", "-j", "--results-only", "-a", "<読むアカウント>", "calendar", "events", "--days", "35"]},
-      {"name": "<ファミリーカレンダー>", "enabled": false, "cmd": ["gog", "--enable-commands", "calendar", "-j", "--results-only", "-a", "<読むアカウント>", "calendar", "events", "--calendar", "<カレンダーID>", "--days", "35"]}
+      {"name": "<ファミリーカレンダー>", "enabled": false, "cmd": ["gog", "--enable-commands", "calendar", "-j", "--results-only", "-a", "<読むアカウント>", "calendar", "events", "<カレンダーID>", "--days", "35"]}
     ]
   },
   "roles": {"<送り主の識別子>": "家族"},

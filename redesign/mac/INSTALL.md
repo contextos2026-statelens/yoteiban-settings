@@ -4,9 +4,10 @@
 
 ## 導入前
 
-- `python3` を用意します。iMessageを読む場合は、そのPythonにフルディスクアクセスを許可します。
+- `python3` を用意します。iMessageを読む場合は、フルディスクアクセスはlaunchdで実際に動くPython（`status.sh` または `ps` で見える実体）に付けます。HomebrewのPythonは更新で場所が変わり許可が外れることがあるので、更新後は `status.sh` と `watch.log.jsonl` の `unreadable` を確かめます。
 - Gmail・カレンダーは読み取り専用で接続します。外部AIは既定で無効です。
 - 通知先が署名を検証するよう設定します。署名は送信JSON本文のHMAC-SHA256で、鍵は `YOTEIBAN_WEBHOOK_KEY` に置きます。
+- Grok Botの受け口のようにAuthorizationヘッダーで鍵を受ける先には `YOTEIBAN_WEBHOOK_AUTH` を使います。
 - `heartbeat_url`、`clock_heartbeat_url`、`due_url`、`webhook_url` は本人が用意した値を `config.json` に設定します。Git管理下の例には実値を入れません。
 
 ## インストール

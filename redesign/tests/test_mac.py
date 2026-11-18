@@ -17,6 +17,7 @@ PH1 = "0" + "90-" + "0" * 4 + "-" + "0" * 3 + "1"  # 架空の番号（実在し
 class Fake(BaseHTTPRequestHandler):
     plan = []  # 返し方の列: 200 / 500 / 400 / "slow" / ("ai", text)
     seen = []
+    seen_headers = []
 
     def log_message(self, *a):
         pass
@@ -24,6 +25,7 @@ class Fake(BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         Fake.seen.append(json.loads(body))
+        Fake.seen_headers.append(dict(self.headers.items()))
         p = Fake.plan.pop(0) if Fake.plan else 200
         if p == "slow":
             time.sleep(1.5)
@@ -86,7 +88,7 @@ class StoreTest(unittest.TestCase):
 class SorterTest(unittest.TestCase):
     def setUp(self):
         self.s, self.url = server()
-        Fake.plan, Fake.seen = [], []
+        Fake.plan, Fake.seen, Fake.seen_headers = [], [], []
 
     def tearDown(self):
         self.s.shutdown()
@@ -135,6 +137,49 @@ class WakerTest(unittest.TestCase):
 
     def tearDown(self):
         self.s.shutdown()
+
+    def test_authorization_header_is_forwarded_without_exposing_it(self):
+        from unittest.mock import patch
+        auth = "Bearer test-value"
+        with patch.dict(os.environ, {"YOTEIBAN_WEBHOOK_AUTH": auth}):
+            result = wake(self.url, "k", {"request_id": "auth"}, sleep=lambda *_: None)
+        self.assertEqual(result["state"], "起こし済み")
+        self.assertEqual(Fake.seen_headers[-1].get("Authorization"), auth)
+        self.assertIn("X-Yoteiban-Signature", Fake.seen_headers[-1])
+        self.assertNotIn(auth, repr(result))
+
+    def test_authorization_header_is_omitted_without_env(self):
+        from unittest.mock import patch
+        with patch.dict(os.environ):
+            os.environ.pop("YOTEIBAN_WEBHOOK_AUTH", None)
+            result = wake(self.url, "k", {"request_id": "no-auth"}, sleep=lambda *_: None)
+        self.assertEqual(result["state"], "起こし済み")
+        self.assertNotIn("Authorization", Fake.seen_headers[-1])
+        self.assertIn("X-Yoteiban-Signature", Fake.seen_headers[-1])
+
+    def test_signature_header_is_present_with_and_without_authorization(self):
+        from unittest.mock import patch
+        for auth in (None, "Bearer test-value"):
+            with patch.dict(os.environ):
+                if auth is None:
+                    os.environ.pop("YOTEIBAN_WEBHOOK_AUTH", None)
+                else:
+                    os.environ["YOTEIBAN_WEBHOOK_AUTH"] = auth
+                payload = {"request_id": "signature"}
+                body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
+                wake(self.url, "k", payload, sleep=lambda *_: None)
+            headers = Fake.seen_headers[-1]
+            self.assertEqual(headers.get("X-Yoteiban-Signature"),
+                             hmac.new(b"k", body, hashlib.sha256).hexdigest())
+
+    def test_invalid_authorization_value_is_not_exposed(self):
+        from unittest.mock import patch
+        auth = "Bearer test-value\r\nX-Test: injected"
+        with patch.dict(os.environ, {"YOTEIBAN_WEBHOOK_AUTH": auth}):
+            result = wake(self.url, "k", {"request_id": "invalid-auth"}, sleep=lambda *_: None)
+        self.assertEqual(result["state"], "起こし失敗")
+        self.assertNotIn(auth, repr(result))
+        self.assertNotIn("injected", repr(result))
 
     def test_paths(self):
         nos = lambda *_: None
@@ -240,7 +285,7 @@ class InstallAssetsTest(unittest.TestCase):
 class RunTest(unittest.TestCase):
     def setUp(self):
         self.s, self.url = server()
-        Fake.plan, Fake.seen = [], []
+        Fake.plan, Fake.seen, Fake.seen_headers = [], [], []
 
     def tearDown(self):
         self.s.shutdown()

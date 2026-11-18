@@ -3,7 +3,14 @@ set -euo pipefail
 
 DEST="$HOME/yoteiban-watch"
 DOMAIN="gui/$(id -u)"
-PYTHON_BIN="${YOTEIBAN_PYTHON:-$(command -v python3)}"
+if [[ -n "${YOTEIBAN_PYTHON:-}" ]]; then
+  PYTHON_BIN="$YOTEIBAN_PYTHON"
+elif [[ -x "$DEST/venv/bin/python" ]]; then
+  PYTHON_BIN="$DEST/venv/bin/python"
+else
+  PYTHON_BIN="$(command -v python3)"
+fi
+printf 'Python: %s\n' "$PYTHON_BIN"
 for LABEL in com.yoteiban.watch com.yoteiban.clock; do
   if launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; then
     printf '%s: 動作中\n' "$LABEL"

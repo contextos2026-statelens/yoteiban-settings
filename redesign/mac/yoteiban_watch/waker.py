@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import socket
 import time
 import urllib.error
@@ -13,18 +14,28 @@ import urllib.request
 
 
 def wake(url: str, key: str | None, payload: dict, retries: int | None = None, timeout_s: float = 8.0,
-         backoff_s: float = 2.0, sleep=time.sleep, backoff: list[float] | None = None) -> dict:
+         backoff_s: float = 2.0, sleep=time.sleep, backoff: list[float] | None = None,
+         authorization_header: str | None = None) -> dict:
     if not url or not key:
         return {"state": "起こし失敗", "why": "WebhookのURLか鍵が設定にない"}
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
     signature = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    if authorization_header is None:
+        authorization_header = os.environ.get("YOTEIBAN_WEBHOOK_AUTH")
     delays = list(backoff) if backoff is not None else [backoff_s * (i + 1) for i in range(max((retries or 3) - 1, 0))]
     total = len(delays) + 1 if retries is None else min(retries, len(delays) + 1)
     last = ""
     for i in range(total):
-        req = urllib.request.Request(url, data=body, method="POST", headers={
+        headers = {
             "Content-Type": "application/json", "X-Yoteiban-Signature": signature,
-            "Idempotency-Key": payload.get("request_id", "")})
+            "Idempotency-Key": payload.get("request_id", "")}
+        if authorization_header:
+            headers["Authorization"] = authorization_header
+        try:
+            req = urllib.request.Request(url, data=body, method="POST", headers=headers)
+        except Exception:
+            # Authorization の不正な値を例外文や戻り値へ漏らさない。
+            return {"state": "起こし失敗", "attempts": i + 1, "why": "Webhook要求を作れない"}
         try:
             with urllib.request.urlopen(req, timeout=timeout_s) as r:
                 reply = r.read()
@@ -52,6 +63,9 @@ def wake(url: str, key: str | None, payload: dict, retries: int | None = None, t
             last = f"接続できない: {type(e.reason).__name__}"
         except (ConnectionError, OSError) as e:
             last = f"接続できない: {type(e).__name__}"
+        except Exception:
+            # HTTPライブラリの例外文に認証ヘッダー値が含まれる場合も外へ出さない。
+            return {"state": "起こし失敗", "attempts": i + 1, "why": "Webhook要求に失敗"}
         if i + 1 < total:
             sleep(delays[i])
     return {"state": "起こし失敗", "attempts": total, "why": last}
