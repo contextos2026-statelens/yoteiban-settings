@@ -166,7 +166,7 @@ class SkillCoverage(unittest.TestCase):
             "nightly": ["previous", "feedback", "weekly", "suppressed", "当たり外れ", "家用だけ"],
             "setup": ["R10 毎晩の見直し", "記憶の『読む先の一覧』のカレンダーを全部読み"],
             "chat": ["30秒前後", "1〜3分", "5分以内", "1回の並列", "news", "cli diff", "cli free", "last_check.json", "can_say_no_change",
-                     "full_needed", "読み直しの1手を足さない", "並列で呼んでよい", "推測で埋めない", "安全の線は早道でも同じ", "「未確認」"],
+                     "full_needed", "読み直しの1手を足さない", "並列で呼んでよい", "推測で埋めない", "latency.jsonl", "本人の名前・件名・本文は書かない", "安全の線は早道でも同じ", "「未確認」"],
             "selftest": ["【X60", "【X64", "【X66", "【X67", "【X68"],
         }
         missing = [(d, s) for d, ss in must.items() for s in ss if s not in self.text(d)]
@@ -323,3 +323,30 @@ class QuickPath(unittest.TestCase):
             self.skipTest("正本なし")
         text = open(_paths.SEIHON, encoding="utf-8").read()
         self.assertLess(slice_for("chat", text)["chars"], len(text) * 0.1)
+
+
+class LatencyJudge(unittest.TestCase):
+    """本番で測る待ち時間の判定（速さの4点の基準。2026-11-18 本人の決定）。"""
+
+    def rows(self, simple_sec=25, dialog_sec=100, days=7):
+        out = []
+        for d in range(days):
+            day = f"2026-11-{20 + d:02d}"
+            out.append({"asked_at": f"{day} 09:00 JST", "replied_at": f"{day} 09:00 JST", "scene": "simple"})
+            out[-1]["replied_at"] = f"{day} 09:00:{simple_sec:02d} JST" if simple_sec < 60 else f"{day} 09:01 JST"
+            for k in range(2):
+                out.append({"asked_at": f"{day} 1{k}:00 JST", "replied_at": f"{day} 1{k}:{dialog_sec // 60:02d}:{dialog_sec % 60:02d} JST",
+                            "scene": "dialog", "adjustments": 1})
+        return out
+
+    def test_pass_fail_and_enough(self):
+        from yoteiban_rd.latency import judge
+        self.assertEqual(judge(self.rows())["判定"], "4点（基準内）")
+        self.assertEqual(judge(self.rows(dialog_sec=400))["判定"], "基準外（手順を短くする）")
+        self.assertEqual(judge(self.rows(simple_sec=59))["判定"], "基準外（手順を短くする）")
+        self.assertEqual(judge(self.rows(days=3))["判定"], "件数が足りない（測り続ける）")
+
+    def test_per_adjustment(self):
+        from yoteiban_rd.latency import judge
+        r = judge([{"asked_at": "2026-11-20 10:00 JST", "replied_at": "2026-11-20 10:06 JST", "scene": "dialog", "adjustments": 3}])
+        self.assertEqual(r["場面ごと"]["dialog"]["中央値秒"], 120.0)

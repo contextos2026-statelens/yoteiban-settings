@@ -15,6 +15,7 @@ from .urgency import Context, Item, decide
 from .nightly import Case, review, record_feedback, load_feedback, hit_rate
 from .morning import Source, build_morning, coverage
 from .quick import diff as quick_diff, snapshot as quick_snapshot
+from .latency import judge as latency_judge
 
 
 def _ev(d: dict) -> Event:
@@ -162,6 +163,15 @@ def cmd_free(data: dict) -> dict:
     return {"slots": out, "count": len(out)}
 
 
+def cmd_latency(data: dict) -> dict:
+    """本番で測った待ち時間を基準に照らす。rows を直接渡すか、path に jsonl（1行1件）を渡す。"""
+    rows = data.get("rows")
+    if rows is None:
+        with open(data["path"], encoding="utf-8") as f:
+            rows = [json.loads(line) for line in f if line.strip()]
+    return latency_judge(rows)
+
+
 def cmd_snapshot(data: dict) -> dict:
     return quick_snapshot(data["now"], data.get("events", []), data.get("items", []), data.get("cursors"))
 
@@ -177,7 +187,8 @@ def cmd_hit_rate(data: dict) -> dict:
 COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": cmd_nightly,
             "coverage": cmd_coverage, "morning": cmd_morning, "weekday": cmd_weekday,
             "feedback": cmd_feedback, "hit-rate": cmd_hit_rate, "diff": cmd_diff,
-            "snapshot": cmd_snapshot, "free": cmd_free}
+            "snapshot": cmd_snapshot, "free": cmd_free,
+            "latency": cmd_latency}
 
 
 def main(argv=None) -> int:
