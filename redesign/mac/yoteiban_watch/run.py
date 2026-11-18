@@ -47,6 +47,14 @@ def log(cfg: dict, rec: dict) -> None:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
+def _heartbeat_file(cfg: dict, name: str, ok: bool, now: datetime | None = None) -> None:
+    path = Path(cfg["state_dir"]) / f"heartbeat_{name}.json"
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"at": (now or datetime.now(ZoneInfo("Asia/Tokyo"))).isoformat(),
+                               "ok": bool(ok)}, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def role_of(cfg: dict, inc) -> str:
     if inc.from_me:
         return "本人"
@@ -68,7 +76,8 @@ def clock_once(cfg: dict, store: Store, now: datetime | None = None, fetch=None,
     sent = clock_catch_up(now, due, last_run, store, wake_fn)
     sent.extend(clock_tick(now, due, store, wake_fn))
     store.set_cursor("clock_last_run_at", now.isoformat())
-    ping_fn(cfg.get("clock_heartbeat_url", ""), True)
+    hb_ok = ping_fn(cfg.get("clock_heartbeat_url", ""), True)
+    _heartbeat_file(cfg, "clock", hb_ok, now)
     return sent
 
 
@@ -153,13 +162,34 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
     return stats
 
 
+def _clock_service(cfg: dict, once: bool = False) -> int:
+    Path(cfg["state_dir"]).mkdir(parents=True, exist_ok=True)
+    lock = open(Path(cfg["state_dir"]) / "clock.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("時計はもう動いています", file=sys.stderr)
+        return 1
+    store = Store(Path(cfg["state_dir"]) / "watch.db")
+    signal.signal(signal.SIGTERM, _on_term)
+    signal.signal(signal.SIGINT, _on_term)
+    while True:
+        clock_once(cfg, store)
+        if once or _stop:
+            return 0
+        time.sleep(60)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--shadow", action="store_true")
+    ap.add_argument("--clock-only", action="store_true")
     a = ap.parse_args(argv)
     cfg = load_config(a.config)
+    if a.clock_only:
+        return _clock_service(cfg, a.once)
     Path(cfg["state_dir"]).mkdir(parents=True, exist_ok=True)
     lock = open(Path(cfg["state_dir"]) / "watch.lock", "w")
     try:
@@ -177,14 +207,11 @@ def main(argv=None) -> int:
     interval = float(cfg.get("interval_s", 3))
     while True:
         st = poll_once(cfg, store, ai, a.shadow or cfg.get("shadow", False))
-        heartbeat_ping(cfg.get("heartbeat_url", ""), not bool(st["unreadable"]))
+        healthy = not bool(st["unreadable"])
+        delivered = heartbeat_ping(cfg.get("heartbeat_url", ""), healthy)
+        _heartbeat_file(cfg, "watch", healthy and delivered)
         if st["new"]:
             log(cfg, {"poll": st})
-        now = datetime.now(ZoneInfo("Asia/Tokyo"))
-        minute = now.strftime("%Y-%m-%dT%H:%M")
-        if minute != store.cursor("clock_last_minute"):
-            clock_once(cfg, store, now)
-            store.set_cursor("clock_last_minute", minute)
         if a.once or _stop:
             return 0
         time.sleep(interval)
