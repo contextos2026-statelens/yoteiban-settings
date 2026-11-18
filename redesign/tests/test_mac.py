@@ -1,10 +1,13 @@
-import json, os, socket, sqlite3, tempfile, threading, time, unittest
+import json, os, socket, sqlite3, tempfile, threading, time, unittest, plistlib, shutil, subprocess
+import hashlib, hmac
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import _paths  # noqa
 from yoteiban_watch.mask import mask
 from yoteiban_watch.store import Store
 from yoteiban_watch.sorter import AIClient, sort_item, WAKE, MORNING, NONE
 from yoteiban_watch.waker import wake
+from yoteiban_watch.heartbeat import ping
+from yoteiban_watch.clock import fetch_due, tick, catch_up
 from yoteiban_watch.sources import read_imessage, run_tool, SourceError
 from yoteiban_watch import run as runmod
 
@@ -136,6 +139,20 @@ class WakerTest(unittest.TestCase):
     def test_paths(self):
         nos = lambda *_: None
         self.assertEqual(wake(self.url, "k", {"request_id": "r"}, sleep=nos)["state"], "起こし済み")
+        req_body = json.dumps({"request_id": "signed"}, ensure_ascii=False, separators=(",", ":")).encode()
+        self.assertEqual(Fake.seen[-1]["request_id"], "r")
+        Fake.plan = [200]
+        # 署名は送信本文そのものの HMAC-SHA256。
+        from unittest.mock import patch
+        captured = {}
+        original = urllib_request = __import__("urllib.request", fromlist=["urlopen"])
+        real_urlopen = original.urlopen
+        def capture(req, **kw):
+            captured.update(req.headers)
+            return real_urlopen(req, **kw)
+        with patch.object(original, "urlopen", capture):
+            wake(self.url, "k", {"request_id": "signed"}, sleep=nos)
+        self.assertEqual(captured["X-yoteiban-signature"], hmac.new(b"k", req_body, hashlib.sha256).hexdigest())
         Fake.plan = [500, 200]
         r = wake(self.url, "k", {"request_id": "r"}, sleep=nos)
         self.assertEqual((r["state"], r["attempts"]), ("起こし済み", 2))
@@ -169,6 +186,57 @@ class SourceTest(unittest.TestCase):
                 read_imessage(os.path.join(d, "none.db"), 0)
 
 
+class HeartbeatClockTest(unittest.TestCase):
+    def test_heartbeat_routes_and_swallows_failure(self):
+        calls = []
+        class Response:
+            def close(self): pass
+        self.assertTrue(ping("https://example.com/h", True, lambda url: calls.append(url) or Response()))
+        self.assertTrue(ping("https://example.com/h/", False, lambda url: calls.append(url) or Response()))
+        self.assertEqual(calls, ["https://example.com/h", "https://example.com/h/fail"])
+        self.assertFalse(ping("https://example.com/h", True, lambda *_: (_ for _ in ()).throw(OSError())))
+
+    def test_due_fetch_tick_dedupe_and_catchup(self):
+        fetched = fetch_due(lambda url: [{"case_id": "c1", "next_review_at": "2026-11-18T10:00:00+09:00",
+                                          "body_text": "must not escape"}], "https://example.com/due")
+        self.assertEqual(fetched, [{"case_id": "c1", "next_review_at": "2026-11-18T10:00:00+09:00"}])
+        due = [{"case_id": "c1", "next_review_at": "2026-11-18T10:00:00+09:00"},
+               {"case_id": "c2", "next_review_at": "2026-11-18T10:02:00+09:00"}]
+        sent_store, emitted = set(), []
+        wake_fn = lambda p: emitted.append(p) or {"state": "起こし済み"}
+        now = "2026-11-18T10:01:00+09:00"
+        self.assertEqual(tick(now, due, sent_store, wake_fn)[0]["case_id"], "c1")
+        self.assertEqual(tick(now, due, sent_store, wake_fn), [])
+        caught = catch_up("2026-11-18T10:03:00+09:00", due, "2026-11-18T09:59:00+09:00", sent_store, wake_fn)
+        self.assertEqual([x["case_id"] for x in caught], ["c2"])
+        self.assertEqual(len(emitted), 2)
+        self.assertEqual(set(emitted[0]), {"kind", "case_id", "due_at"})
+
+
+class InstallAssetsTest(unittest.TestCase):
+    def test_plist_template_renders_for_watch_and_clock(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        template = open(os.path.join(root, "mac", "launchd.plist.template"), encoding="utf-8").read()
+        for label, mode in (("com.yoteiban.watch", ""), ("com.yoteiban.clock", "--clock-only")):
+            rendered = (template.replace("{LABEL}", label).replace("{HOME}", "/Users/example")
+                        .replace("{PY}", "/usr/bin/python3").replace("{MODE_ARG}", mode)
+                        .replace("{LOG_NAME}", label.rsplit(".", 1)[-1]))
+            self.assertNotRegex(rendered, r"\{[A-Z_]+\}")
+            parsed = plistlib.loads(rendered.encode())
+            self.assertEqual(parsed["Label"], label)
+            self.assertTrue(parsed["KeepAlive"])
+            self.assertIn("yoteiban-watch/state", parsed["StandardOutPath"])
+
+    def test_install_scripts_parse_as_bash(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        bash = shutil.which("bash")
+        self.assertIsNotNone(bash)
+        for name in ("install.sh", "uninstall.sh", "status.sh"):
+            path = os.path.join(root, "mac", "scripts", name)
+            result = subprocess.run([bash, "-n", path], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+
 class RunTest(unittest.TestCase):
     def setUp(self):
         self.s, self.url = server()
@@ -193,7 +261,9 @@ class RunTest(unittest.TestCase):
             r = runmod.poll_once(cfg, st, None, shadow=False)
             self.assertEqual((r["new"], r[WAKE], r[MORNING], r[NONE]), (3, 1, 1, 1))
             self.assertEqual(len(Fake.seen), 1)
-            self.assertNotIn("集合", json.dumps(Fake.seen[0], ensure_ascii=False))  # 本文は送らない
+            self.assertIn("集合", Fake.seen[0]["body_text"])
+            log_text = open(os.path.join(d, "watch.log.jsonl")).read()
+            self.assertNotIn("集合", log_text)
             self.assertTrue(r["unreadable"])  # gmail が読めない → 記録される
             # 中断：読み位置を戻しても、同じものを二重に起こさない
             st.set_cursor("imessage", "0")
@@ -205,7 +275,22 @@ class RunTest(unittest.TestCase):
             cfg = self.cfg(d, shadow=True)
             r = runmod.poll_once(cfg, Store(os.path.join(d, "w.db")), None, shadow=True)
             self.assertEqual((r[WAKE], len(Fake.seen)), (1, 0))
-            self.assertIn("shadow_wake", open(os.path.join(d, "watch.log.jsonl")).read())
+            self.assertIn('"state": "shadow"', open(os.path.join(d, "watch.log.jsonl")).read())
+            self.assertNotIn("集合", open(os.path.join(d, "watch.log.jsonl")).read())
+
+    def test_payload_truncation(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "chat.db")
+            make_chatdb(p, [(1, "明日10時" + "あ" * 40, None, 0, 0, 1)])
+            cfg = {"state_dir": d, "sources": {"imessage": {"enabled": True, "db_path": p}},
+                   "roles": {"h-family": "家族"}, "webhook_url": self.url, "max_body_chars": 12}
+            captured = {}
+            def fake_wake(url, key, payload, **kwargs):
+                captured.update(payload)
+                return {"state": "起こし済み", "attempts": 1}
+            runmod.poll_once(cfg, Store(os.path.join(d, "w.db")), None, False, wake_fn=fake_wake)
+            self.assertEqual(len(captured["body_text"]), 12)
+            self.assertTrue(captured["truncated"])
 
 
 if __name__ == "__main__":

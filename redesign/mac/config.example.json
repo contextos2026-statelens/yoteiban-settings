@@ -2,6 +2,9 @@
   "_説明": "固有値（番号・アドレス・名前・URL）はこのファイルの写しにだけ書く。Gitには例だけを置く。鍵は環境変数（YOTEIBAN_WEBHOOK_KEY・YOTEIBAN_AI_KEY）。読む先は記憶の『読む先の一覧』と同じものを全部並べる（家用カレンダーは primary とファミリーの両方）。",
   "state_dir": "~/yoteiban-watch/state",
   "interval_s": 3,
+  "max_body_chars": 8000,
+  "resend_backoff_s": [30, 120, 600, 1800],
+  "heartbeat_url": "",
   "shadow": true,
   "webhook_url": "",
   "sources": {

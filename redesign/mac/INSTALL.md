@@ -1,46 +1,63 @@
-# Mac mini の見張り番 導入手順（まだ置かない・動かさない）
+# Mac miniへの導入・停止・削除
 
-この手順は、本人の承認の後に初めて行う。伝書鳩（今の常駐）には触らない。名前も場所も別にする。
+この手順は本人が承認した後に実行します。見張り番と時計は別々のlaunchdサービスとして動きます。どちらも専用の `com.yoteiban.*` 名と `~/yoteiban-watch` の場所を使い、既存の伝書鳩には触れません。
 
-## 0. 前もって必要なこと（本人の操作）
+## 導入前
 
-- Gmail・カレンダー：Google を読む道具（gog）に、読むだけの権限でログインする（アカウントごと）。ログイン済みが0件のあいだは、iMessage だけで動かす。
-- 外部AIの鍵（使うときだけ）：環境ファイルに置く。月の上限（円）を本人が決める。
-- iMessage の記録を読むには、実行する python3 に「フルディスクアクセス」が要る（伝書鳩で既に許可済みかを確かめる）。
+- `python3` を用意します。iMessageを読む場合は、そのPythonにフルディスクアクセスを許可します。
+- Gmail・カレンダーは読み取り専用で接続します。外部AIは既定で無効です。
+- 通知先が署名を検証するよう設定します。署名は送信JSON本文のHMAC-SHA256で、鍵は `YOTEIBAN_WEBHOOK_KEY` に置きます。
+- `heartbeat_url`、`clock_heartbeat_url`、`due_url`、`webhook_url` は本人が用意した値を `config.json` に設定します。Git管理下の例には実値を入れません。
 
-## 1. 置く（ファイルだけ）
+## インストール
 
-```
-mkdir -p ~/yoteiban-watch/{app,state}
-# リポジトリの redesign/mac/yoteiban_watch を ~/yoteiban-watch/app/ に写す
-cp config.example.json ~/yoteiban-watch/config.json   # 中身を本物の値に直す（Git には入れない）
-printf 'YOTEIBAN_WEBHOOK_URL=\nYOTEIBAN_WEBHOOK_KEY=\nYOTEIBAN_AI_KEY=\n' > ~/yoteiban-watch/env
-chmod 600 ~/yoteiban-watch/env ~/yoteiban-watch/config.json
-```
+リポジトリの `redesign/mac` から次を実行します。
 
-- `config.json` の `shadow` は最初 `true`（起こさない・記録だけ）。並べて試す期間が終わり、本人の承認があってから `false`。
-- `start_rowid` は置く時点の最新の番号にする（過去の分を一度に起こさない）。
-
-## 2. 1回だけ試す（起こさない）
-
-```
-cd ~/yoteiban-watch/app && /usr/bin/python3 -m yoteiban_watch.run --config ~/yoteiban-watch/config.json --once --shadow
-tail ~/yoteiban-watch/state/watch.log.jsonl
+```sh
+bash scripts/install.sh
 ```
 
-## 3. 常駐にする
+スクリプトは `~/yoteiban-watch/app` にプログラム、`~/yoteiban-watch/state` に状態を置きます。設定例は `config.json` として初回だけコピーし、環境変数ファイル `env` も初回だけ作ります。既存の設定は上書きしません。`config.json` と `env` は所有者だけが読める権限にします。
 
-`launchd.plist.template` の `{LABEL}`・`{HOME}`・`{PY}` を置き換えて `~/Library/LaunchAgents/` に置き、`launchctl bootstrap gui/$(id -u) <plist>`。
+`config.json` で最初は `shadow: true` にします。`~/yoteiban-watch/env` にWebhook URLと鍵を記入し、必要なら外部AI鍵も設定します。鍵の値はplistに書きません。
 
-## 止める・戻す
+## 影の運用から本番へ
 
-- 止める：`launchctl bootout gui/$(id -u)/<LABEL>`。
-- 戻す：上の plist と `~/yoteiban-watch` を消すだけ。ほかの仕組み（伝書鳩・予定ばんの定期の見回り）はそのまま動く。
-- 止まっている間に届いた分は、予定ばんの定期の見回りが照合で拾う。
+1. `bash scripts/status.sh` で見張り番・時計の状態、最後の心拍、pending件数を確認します。
+2. `~/yoteiban-watch/state/watch.log.jsonl` と心拍先を確認し、影の運用で読み取りと通知判定を確かめます。shadow中はWebhookを呼びません。
+3. 本人が切り替えを承認した後、`config.json` の `shadow` を `false` にします。
+4. 通知先がHMAC署名とrequest_idを検証し、重複を防ぐことを確認します。サービスは設定ファイルを次回起動時に読みます。再起動する場合は下記の停止・起動手順を使います。
 
-## 守り
+時刻の確認は本文を取得せず、`due_url` から案件IDと確認時刻だけを読みます。見張り番は `heartbeat_url`、時計は `clock_heartbeat_url` に毎回GETします。心拍失敗時は各URLの末尾に `/fail` を付けてGETします。
 
-- 読むだけ：chat.db は読み取り専用で開く。Google の道具は `--enable-commands` で gmail か calendar の1つに絞り、送信・変更の語が入った呼び出しは道具を呼ぶ前に止める。
-- Webhook に本文は入れない（依頼ID・入口の参照・仕分けの結果だけ）。
-- 外部AIに渡すのは、伏せ字にした本文と送り主の役割だけ。履歴・写真・名前・番号・アドレスは渡さない。
-- 外部AIの答えは決まった形以外は捨て、決まりだけの仕分けに落とす。月の上限に達したら外部AIを止める。
+## 状態確認・停止・再開
+
+状態を確認します。
+
+```sh
+bash scripts/status.sh
+```
+
+停止する場合は2サービスだけを停止します。
+
+```sh
+launchctl bootout "gui/$(id -u)/com.yoteiban.watch" || true
+launchctl bootout "gui/$(id -u)/com.yoteiban.clock" || true
+```
+
+再開する場合はインストールスクリプトを再実行します。設定ファイルと環境ファイルは保持されます。
+
+## アンインストール
+
+```sh
+bash scripts/uninstall.sh
+```
+
+見張り番と時計を停止し、専用plist、アプリ、設定、環境ファイルを削除します。`~/yoteiban-watch/state` は削除しません。伝書鳩や他のサービスには触れません。
+
+## データの扱い
+
+- メール・メッセージ・カレンダーは読み取りだけです。
+- Webhookには起床に必要な本文を送ります。`watch.log.jsonl` には本文を書かず、request_id・情報源・状態・文字数だけを記録します。
+- 外部AIを使う場合、伏せ字にした本文だけを渡します。`ai.enabled` は初期値 `false` のままです。
+- 位置情報は記録しません。

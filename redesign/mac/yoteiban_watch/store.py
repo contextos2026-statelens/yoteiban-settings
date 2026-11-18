@@ -26,6 +26,14 @@ class Store:
             " updated_at real)")
         self.db.execute("create table if not exists cursors(source text primary key, value text)")
         self.db.execute("create table if not exists meter(month text primary key, yen real)")
+        self.db.execute("create table if not exists clock_sent(case_id text, due_at text, primary key(case_id, due_at))")
+        self.db.commit()
+
+    def has_clock_sent(self, case_id: str, due_at: str) -> bool:
+        return self.db.execute("select 1 from clock_sent where case_id=? and due_at=?", (case_id, due_at)).fetchone() is not None
+
+    def mark_clock_sent(self, case_id: str, due_at: str) -> None:
+        self.db.execute("insert or ignore into clock_sent(case_id,due_at) values(?,?)", (case_id, due_at))
         self.db.commit()
 
     def add(self, source: str, native_id: str, role: str) -> tuple[str, bool]:
