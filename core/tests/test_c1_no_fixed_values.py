@@ -6,7 +6,7 @@ from pathlib import Path
 
 PATTERNS = [
     re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
-    re.compile(r"(?<!\d)(?:\+?\d[\d ()-]{7,}\d)(?!\d)"),
+    re.compile(r"(?<!\d)(?:\+81|0)\d{1,4}-?\d{2,4}-?\d{3,4}(?!\d)"),
     re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}\b"),
     re.compile(r"\b[0-9a-fA-F]{32,}\b"),
     re.compile("automations" + "/webhook/"),
