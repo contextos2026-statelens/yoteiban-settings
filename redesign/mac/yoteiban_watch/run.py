@@ -11,11 +11,14 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from .sorter import AIClient, MORNING, NONE, WAKE, sort_item
 from .sources import SourceError, read_calendar_changes, read_gmail, read_imessage
 from .store import Store
 from .waker import wake
+from .heartbeat import ping as heartbeat_ping
+from .clock import catch_up as clock_catch_up, fetch_due, tick as clock_tick
 
 _stop = False
 
@@ -49,6 +52,24 @@ def role_of(cfg: dict, inc) -> str:
         return "本人"
     roles = cfg.get("roles", {})  # 送り主の識別子 → 役割（家族・友だち・学校など）
     return roles.get(inc.sender) or roles.get(inc.chat) or "登録外"
+
+
+def clock_once(cfg: dict, store: Store, now: datetime | None = None, fetch=None, wake_fn=None,
+               ping_fn=heartbeat_ping) -> list[dict]:
+    """分ごとの期限確認。取得内容はcase_idとnext_review_atだけ。"""
+    now = now or datetime.now(ZoneInfo("Asia/Tokyo"))
+    due = fetch_due(fetch=fetch, url=cfg.get("due_url"))
+    endpoint = cfg.get("webhook_url") or os.environ.get("YOTEIBAN_WEBHOOK_URL", "")
+    key = os.environ.get("YOTEIBAN_WEBHOOK_KEY")
+    if wake_fn is None:
+        wake_fn = lambda payload: wake(endpoint, key, payload,
+                                       backoff=cfg.get("resend_backoff_s", [30, 120, 600, 1800]))
+    last_run = store.cursor("clock_last_run_at")
+    sent = clock_catch_up(now, due, last_run, store, wake_fn)
+    sent.extend(clock_tick(now, due, store, wake_fn))
+    store.set_cursor("clock_last_run_at", now.isoformat())
+    ping_fn(cfg.get("clock_heartbeat_url", ""), True)
+    return sent
 
 
 def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_fn=wake) -> dict:
@@ -156,8 +177,14 @@ def main(argv=None) -> int:
     interval = float(cfg.get("interval_s", 3))
     while True:
         st = poll_once(cfg, store, ai, a.shadow or cfg.get("shadow", False))
+        heartbeat_ping(cfg.get("heartbeat_url", ""), not bool(st["unreadable"]))
         if st["new"]:
             log(cfg, {"poll": st})
+        now = datetime.now(ZoneInfo("Asia/Tokyo"))
+        minute = now.strftime("%Y-%m-%dT%H:%M")
+        if minute != store.cursor("clock_last_minute"):
+            clock_once(cfg, store, now)
+            store.set_cursor("clock_last_minute", minute)
         if a.once or _stop:
             return 0
         time.sleep(interval)

@@ -6,6 +6,8 @@ from yoteiban_watch.mask import mask
 from yoteiban_watch.store import Store
 from yoteiban_watch.sorter import AIClient, sort_item, WAKE, MORNING, NONE
 from yoteiban_watch.waker import wake
+from yoteiban_watch.heartbeat import ping
+from yoteiban_watch.clock import fetch_due, tick, catch_up
 from yoteiban_watch.sources import read_imessage, run_tool, SourceError
 from yoteiban_watch import run as runmod
 
@@ -182,6 +184,33 @@ class SourceTest(unittest.TestCase):
             self.assertEqual(read_imessage(p, 2), [])
             with self.assertRaises(SourceError):
                 read_imessage(os.path.join(d, "none.db"), 0)
+
+
+class HeartbeatClockTest(unittest.TestCase):
+    def test_heartbeat_routes_and_swallows_failure(self):
+        calls = []
+        class Response:
+            def close(self): pass
+        self.assertTrue(ping("https://example.com/h", True, lambda url: calls.append(url) or Response()))
+        self.assertTrue(ping("https://example.com/h/", False, lambda url: calls.append(url) or Response()))
+        self.assertEqual(calls, ["https://example.com/h", "https://example.com/h/fail"])
+        self.assertFalse(ping("https://example.com/h", True, lambda *_: (_ for _ in ()).throw(OSError())))
+
+    def test_due_fetch_tick_dedupe_and_catchup(self):
+        fetched = fetch_due(lambda url: [{"case_id": "c1", "next_review_at": "2026-11-18T10:00:00+09:00",
+                                          "body_text": "must not escape"}], "https://example.com/due")
+        self.assertEqual(fetched, [{"case_id": "c1", "next_review_at": "2026-11-18T10:00:00+09:00"}])
+        due = [{"case_id": "c1", "next_review_at": "2026-11-18T10:00:00+09:00"},
+               {"case_id": "c2", "next_review_at": "2026-11-18T10:02:00+09:00"}]
+        sent_store, emitted = set(), []
+        wake_fn = lambda p: emitted.append(p) or {"state": "起こし済み"}
+        now = "2026-11-18T10:01:00+09:00"
+        self.assertEqual(tick(now, due, sent_store, wake_fn)[0]["case_id"], "c1")
+        self.assertEqual(tick(now, due, sent_store, wake_fn), [])
+        caught = catch_up("2026-11-18T10:03:00+09:00", due, "2026-11-18T09:59:00+09:00", sent_store, wake_fn)
+        self.assertEqual([x["case_id"] for x in caught], ["c2"])
+        self.assertEqual(len(emitted), 2)
+        self.assertEqual(set(emitted[0]), {"kind", "case_id", "due_at"})
 
 
 class RunTest(unittest.TestCase):
