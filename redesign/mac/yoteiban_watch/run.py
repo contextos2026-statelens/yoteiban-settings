@@ -55,6 +55,18 @@ def _heartbeat_file(cfg: dict, name: str, ok: bool, now: datetime | None = None)
     os.replace(tmp, path)
 
 
+class _ShadowClockSentStore:
+    """影の運用の重複記録を通常送信の記録から分ける。"""
+    def __init__(self, store: Store):
+        self.store = store
+
+    def has_clock_sent(self, case_id: str, due_at: str) -> bool:
+        return self.store.has_clock_shadow_sent(case_id, due_at)
+
+    def mark_clock_sent(self, case_id: str, due_at: str) -> None:
+        self.store.mark_clock_shadow_sent(case_id, due_at)
+
+
 def role_of(cfg: dict, inc) -> str:
     if inc.from_me:
         return "本人"
@@ -63,19 +75,25 @@ def role_of(cfg: dict, inc) -> str:
 
 
 def clock_once(cfg: dict, store: Store, now: datetime | None = None, fetch=None, wake_fn=None,
-               ping_fn=heartbeat_ping) -> list[dict]:
+               ping_fn=heartbeat_ping, shadow: bool = False) -> list[dict]:
     """分ごとの期限確認。取得内容はcase_idとnext_review_atだけ。"""
     now = now or datetime.now(ZoneInfo("Asia/Tokyo"))
     due = fetch_due(fetch=fetch, url=cfg.get("due_url"))
     endpoint = cfg.get("webhook_url") or os.environ.get("YOTEIBAN_WEBHOOK_URL", "")
     key = os.environ.get("YOTEIBAN_WEBHOOK_KEY")
-    if wake_fn is None:
+    if shadow or cfg.get("shadow", False):
+        def wake_fn(payload):
+            log(cfg, {"request_id": payload.get("request_id"), "source": "clock",
+                      "state": "shadow", "chars": 0})
+            return {"state": "shadow"}
+    elif wake_fn is None:
         wake_fn = lambda payload: wake(endpoint, key, payload,
                                        backoff=cfg.get("resend_backoff_s", [30, 120, 600, 1800]),
                                        authorization_header=os.environ.get("YOTEIBAN_WEBHOOK_AUTH"))
     last_run = store.cursor("clock_last_run_at")
-    sent = clock_catch_up(now, due, last_run, store, wake_fn)
-    sent.extend(clock_tick(now, due, store, wake_fn))
+    clock_store = _ShadowClockSentStore(store) if shadow or cfg.get("shadow", False) else store
+    sent = clock_catch_up(now, due, last_run, clock_store, wake_fn)
+    sent.extend(clock_tick(now, due, clock_store, wake_fn))
     store.set_cursor("clock_last_run_at", now.isoformat())
     hb_ok = ping_fn(cfg.get("clock_heartbeat_url", ""), True)
     _heartbeat_file(cfg, "clock", hb_ok, now)
@@ -164,7 +182,7 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
     return stats
 
 
-def _clock_service(cfg: dict, once: bool = False) -> int:
+def _clock_service(cfg: dict, once: bool = False, shadow: bool = False) -> int:
     Path(cfg["state_dir"]).mkdir(parents=True, exist_ok=True)
     lock = open(Path(cfg["state_dir"]) / "clock.lock", "w")
     try:
@@ -176,7 +194,7 @@ def _clock_service(cfg: dict, once: bool = False) -> int:
     signal.signal(signal.SIGTERM, _on_term)
     signal.signal(signal.SIGINT, _on_term)
     while True:
-        clock_once(cfg, store)
+        clock_once(cfg, store, shadow=shadow)
         if once or _stop:
             return 0
         time.sleep(60)
@@ -191,7 +209,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     cfg = load_config(a.config)
     if a.clock_only:
-        return _clock_service(cfg, a.once)
+        return _clock_service(cfg, a.once, a.shadow)
     Path(cfg["state_dir"]).mkdir(parents=True, exist_ok=True)
     lock = open(Path(cfg["state_dir"]) / "watch.lock", "w")
     try:

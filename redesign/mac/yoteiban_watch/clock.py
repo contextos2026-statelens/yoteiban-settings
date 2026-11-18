@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import urllib.request
 from datetime import datetime
 
@@ -63,7 +64,9 @@ def tick(now, due, sent_store, wake_fn):
             continue
         if not is_due or _already(sent_store, case_id, due_at):
             continue
-        payload = {"kind": "yoteiban-review", "case_id": case_id, "due_at": due_at}
+        rid = hashlib.sha256(f"{case_id}|{due_at}".encode("utf-8")).hexdigest()[:24]
+        payload = {"kind": "yoteiban-review", "request_id": "review:" + rid,
+                   "case_id": case_id, "due_at": due_at}
         # 通信結果不明時にも二重に起こさないため、呼び出す前に一度だけ記録する。
         _mark(sent_store, case_id, due_at)
         try:
