@@ -1,4 +1,4 @@
-import json, os, socket, sqlite3, tempfile, threading, time, unittest
+import json, os, socket, sqlite3, tempfile, threading, time, unittest, plistlib, shutil, subprocess
 import hashlib, hmac
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import _paths  # noqa
@@ -211,6 +211,30 @@ class HeartbeatClockTest(unittest.TestCase):
         self.assertEqual([x["case_id"] for x in caught], ["c2"])
         self.assertEqual(len(emitted), 2)
         self.assertEqual(set(emitted[0]), {"kind", "case_id", "due_at"})
+
+
+class InstallAssetsTest(unittest.TestCase):
+    def test_plist_template_renders_for_watch_and_clock(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        template = open(os.path.join(root, "mac", "launchd.plist.template"), encoding="utf-8").read()
+        for label, mode in (("com.yoteiban.watch", ""), ("com.yoteiban.clock", "--clock-only")):
+            rendered = (template.replace("{LABEL}", label).replace("{HOME}", "/Users/example")
+                        .replace("{PY}", "/usr/bin/python3").replace("{MODE_ARG}", mode)
+                        .replace("{LOG_NAME}", label.rsplit(".", 1)[-1]))
+            self.assertNotRegex(rendered, r"\{[A-Z_]+\}")
+            parsed = plistlib.loads(rendered.encode())
+            self.assertEqual(parsed["Label"], label)
+            self.assertTrue(parsed["KeepAlive"])
+            self.assertIn("yoteiban-watch/state", parsed["StandardOutPath"])
+
+    def test_install_scripts_parse_as_bash(self):
+        root = os.path.dirname(os.path.dirname(__file__))
+        bash = shutil.which("bash")
+        self.assertIsNotNone(bash)
+        for name in ("install.sh", "uninstall.sh", "status.sh"):
+            path = os.path.join(root, "mac", "scripts", name)
+            result = subprocess.run([bash, "-n", path], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class RunTest(unittest.TestCase):
