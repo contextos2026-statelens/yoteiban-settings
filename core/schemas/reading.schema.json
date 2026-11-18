@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "required": ["relevant", "items"],
+  "properties": {
+    "relevant": {"type": "boolean"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "title", "event_start", "date_only", "certainty", "needs_reply", "reply_by", "questions"],
+        "properties": {
+          "kind": {"type": "string", "enum": ["予定", "誘い", "締切", "変更", "取消", "依頼", "お知らせ"]},
+          "title": {"type": "string"},
+          "event_start": {"type": ["string", "null"]},
+          "date_only": {"type": "boolean"},
+          "certainty": {"type": "string", "enum": ["確定", "未定", "推測"]},
+          "needs_reply": {"type": "boolean"},
+          "reply_by": {"type": ["string", "null"]},
+          "questions": {"type": "array", "items": {"type": "object", "properties": {"text": {"type": "string"}, "fill_method": {"type": "string"}}, "required": ["text", "fill_method"]}},
+          "date_text": {"type": ["string", "null"]},
+          "time_text": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

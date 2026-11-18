@@ -16,13 +16,17 @@ def _validate(value, schema, path="$", errors=None):
     if not isinstance(schema, dict): return errors
     typ = schema.get("type")
     kinds = {"object": dict, "array": list, "string": str, "integer": int, "number": (int,float), "boolean": bool, "null": type(None)}
-    if typ in kinds and (not isinstance(value, kinds[typ]) or typ == "integer" and isinstance(value, bool)):
+    allowed_types = typ if isinstance(typ, list) else [typ]
+    valid_types = [kinds[t] for t in allowed_types if t in kinds]
+    if valid_types and not any(isinstance(value, kind) and not ("integer" in allowed_types and isinstance(value, bool)) for kind in valid_types):
         errors.append(f"{path}: type={typ}"); return errors
     if "enum" in schema and value not in schema["enum"]: errors.append(f"{path}: enum")
     if isinstance(value, dict):
         for key in schema.get("required", []):
             if key not in value: errors.append(f"{path}.{key}: required")
         props=schema.get("properties", {})
+        if schema.get("additionalProperties") is False:
+            for key in value.keys() - props.keys(): errors.append(f"{path}.{key}: additional property")
         for key, child in props.items():
             if key in value: _validate(value[key], child, f"{path}.{key}", errors)
     if isinstance(value, list) and "items" in schema:
