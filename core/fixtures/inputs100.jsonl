@@ -1,0 +1,100 @@
+{"input_id": "fixture-001", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "本日の天気のお知らせです。番号1の地域は晴れです。"}
+{"input_id": "fixture-002", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "本日の天気のお知らせです。番号2の地域は晴れです。"}
+{"input_id": "fixture-003", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "本日の天気のお知らせです。番号3の地域は晴れです。"}
+{"input_id": "fixture-004", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "本日の天気のお知らせです。番号4の地域は晴れです。"}
+{"input_id": "fixture-005", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "本日の天気のお知らせです。番号5の地域は晴れです。"}
+{"input_id": "fixture-006", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "本日の天気のお知らせです。番号6の地域は晴れです。"}
+{"input_id": "fixture-007", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "本日の天気のお知らせです。番号7の地域は晴れです。"}
+{"input_id": "fixture-008", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "本日の天気のお知らせです。番号8の地域は晴れです。"}
+{"input_id": "fixture-009", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "本日の天気のお知らせです。番号9の地域は晴れです。"}
+{"input_id": "fixture-010", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "本日の天気のお知らせです。番号10の地域は晴れです。"}
+{"input_id": "fixture-011", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "本日の天気のお知らせです。番号11の地域は晴れです。"}
+{"input_id": "fixture-012", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "本日の天気のお知らせです。番号12の地域は晴れです。"}
+{"input_id": "fixture-013", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "本日の天気のお知らせです。番号13の地域は晴れです。"}
+{"input_id": "fixture-014", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "本日の天気のお知らせです。番号14の地域は晴れです。"}
+{"input_id": "fixture-015", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "本日の天気のお知らせです。番号15の地域は晴れです。"}
+{"input_id": "fixture-016", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "本日の天気のお知らせです。番号16の地域は晴れです。"}
+{"input_id": "fixture-017", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "本日の天気のお知らせです。番号17の地域は晴れです。"}
+{"input_id": "fixture-018", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "本日の天気のお知らせです。番号18の地域は晴れです。"}
+{"input_id": "fixture-019", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "本日の天気のお知らせです。番号19の地域は晴れです。"}
+{"input_id": "fixture-020", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "本日の天気のお知らせです。番号20の地域は晴れです。"}
+{"input_id": "fixture-021", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月27日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-022", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月28日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-023", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月29日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-024", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月30日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-025", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月19日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-026", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月20日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-027", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月21日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-028", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月22日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-029", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月23日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-030", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月24日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-031", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月25日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-032", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月26日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-033", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月27日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-034", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月28日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-035", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月29日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-036", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月30日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-037", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月19日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-038", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月20日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-039", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月21日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-040", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月22日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-041", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月23日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-042", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月24日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-043", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月25日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-044", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月26日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-045", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月27日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-046", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月28日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-047", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月29日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-048", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月30日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-049", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月19日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-050", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月20日 10時に友人Aと読書会の予定です。"}
+{"input_id": "fixture-051", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-052", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-053", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-054", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-055", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-056", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-057", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-058", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-059", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-060", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-061", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-062", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-063", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-064", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-065", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月22日10時に図書館、同日15時に買い物へ行く予定です。"}
+{"input_id": "fixture-066", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月25日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-067", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月26日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-068", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月27日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-069", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月28日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-070", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月29日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-071", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月20日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-072", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月21日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-073", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月22日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-074", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月23日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-075", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月24日の集まりを変更します。時間は11時です。"}
+{"input_id": "fixture-076", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "来週友達と出かけるかも。"}
+{"input_id": "fixture-077", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "21日ごろ会うかもしれません。"}
+{"input_id": "fixture-078", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "土曜に行けたら行きます。"}
+{"input_id": "fixture-079", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "来週友達と出かけるかも。"}
+{"input_id": "fixture-080", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "21日ごろ会うかもしれません。"}
+{"input_id": "fixture-081", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "土曜に行けたら行きます。"}
+{"input_id": "fixture-082", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "来週友達と出かけるかも。"}
+{"input_id": "fixture-083", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "21日ごろ会うかもしれません。"}
+{"input_id": "fixture-084", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "土曜に行けたら行きます。"}
+{"input_id": "fixture-085", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "来週友達と出かけるかも。"}
+{"input_id": "fixture-086", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "21日ごろ会うかもしれません。"}
+{"input_id": "fixture-087", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "土曜に行けたら行きます。"}
+{"input_id": "fixture-088", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "来週友達と出かけるかも。"}
+{"input_id": "fixture-089", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "21日ごろ会うかもしれません。"}
+{"input_id": "fixture-090", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "土曜に行けたら行きます。"}
+{"input_id": "fixture-091", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月24日までに持ち物を用意してください。"}
+{"input_id": "fixture-092", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月25日までに持ち物を用意してください。"}
+{"input_id": "fixture-093", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月26日までに持ち物を用意してください。"}
+{"input_id": "fixture-094", "source": "line", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月27日までに持ち物を用意してください。"}
+{"input_id": "fixture-095", "source": "calendar", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月28日までに持ち物を用意してください。"}
+{"input_id": "fixture-096", "source": "chat", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月29日までに持ち物を用意してください。"}
+{"input_id": "fixture-097", "source": "voice", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "友人A", "body_text": "11月22日までに持ち物を用意してください。"}
+{"input_id": "fixture-098", "source": "photo", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "学校X", "body_text": "11月23日までに持ち物を用意してください。"}
+{"input_id": "fixture-099", "source": "mail", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "仕事", "body_text": "11月24日までに持ち物を用意してください。"}
+{"input_id": "fixture-100", "source": "message", "received_at": "2026-11-18T09:00:00+09:00", "sender_role": "家族", "body_text": "11月25日までに持ち物を用意してください。"}
