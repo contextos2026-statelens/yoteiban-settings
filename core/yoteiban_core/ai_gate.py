@@ -2,6 +2,7 @@
 from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import hashlib
 from .mask import guard
 
 class _SchemaMismatch(ValueError): pass
@@ -77,7 +78,9 @@ def call(task: str, payload: dict, schema: dict, provider, tier: str, ledger=Non
         errors = _validate(response, schema)
     cost = float(_get(settings, "ai_call_cost_yen", 0) or 0)
     if ledger is not None:
-        try: ledger.record_latency(f"ai-{started}", "ai_"+tier, started, now.isoformat(), None, tier, cost)
+        try:
+            request_key = hashlib.sha256((started + "|" + tier + "|" + task).encode("utf-8")).hexdigest()[:24]
+            ledger.record_latency("ai-" + request_key, "ai_"+tier, started, now.isoformat(), None, tier, cost)
         except Exception: pass
     return None if errors else response
 
