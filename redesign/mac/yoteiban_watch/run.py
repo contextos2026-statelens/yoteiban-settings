@@ -71,7 +71,8 @@ def clock_once(cfg: dict, store: Store, now: datetime | None = None, fetch=None,
     key = os.environ.get("YOTEIBAN_WEBHOOK_KEY")
     if wake_fn is None:
         wake_fn = lambda payload: wake(endpoint, key, payload,
-                                       backoff=cfg.get("resend_backoff_s", [30, 120, 600, 1800]))
+                                       backoff=cfg.get("resend_backoff_s", [30, 120, 600, 1800]),
+                                       authorization_header=os.environ.get("YOTEIBAN_WEBHOOK_AUTH"))
     last_run = store.cursor("clock_last_run_at")
     sent = clock_catch_up(now, due, last_run, store, wake_fn)
     sent.extend(clock_tick(now, due, store, wake_fn))
@@ -149,7 +150,8 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
                 else:
                     res = wake_fn(cfg.get("webhook_url") or os.environ.get("YOTEIBAN_WEBHOOK_URL", ""),
                                   os.environ.get("YOTEIBAN_WEBHOOK_KEY"), payload,
-                                  backoff=cfg.get("resend_backoff_s", [30, 120, 600, 1800]))
+                                  backoff=cfg.get("resend_backoff_s", [30, 120, 600, 1800]),
+                                  authorization_header=os.environ.get("YOTEIBAN_WEBHOOK_AUTH"))
                     store.set_state(rid, res["state"], wake_status=res, attempt=True)
                     log(cfg, {"request_id": rid, "source": source, "state": res["state"],
                               "chars": len(body_text), "attempts": res.get("attempts", 0)})

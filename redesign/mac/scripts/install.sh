@@ -5,7 +5,13 @@ MAC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$HOME/yoteiban-watch"
 AGENTS="$HOME/Library/LaunchAgents"
 TEMPLATE="$MAC_DIR/launchd.plist.template"
-PYTHON_BIN="${YOTEIBAN_PYTHON:-$(command -v python3)}"
+if [[ -n "${YOTEIBAN_PYTHON:-}" ]]; then
+  PYTHON_BIN="$YOTEIBAN_PYTHON"
+elif [[ -x "$DEST/venv/bin/python" ]]; then
+  PYTHON_BIN="$DEST/venv/bin/python"
+else
+  PYTHON_BIN="$(command -v python3)"
+fi
 WATCH_LABEL="com.yoteiban.watch"
 CLOCK_LABEL="com.yoteiban.clock"
 DOMAIN="gui/$(id -u)"
@@ -20,6 +26,7 @@ if [[ ! -e "$DEST/env" ]]; then
 # 値は本人が設定する。ここには環境変数名だけを置く。
 YOTEIBAN_WEBHOOK_URL=
 YOTEIBAN_WEBHOOK_KEY=
+YOTEIBAN_WEBHOOK_AUTH=
 YOTEIBAN_AI_KEY=
 EOF
 fi
