@@ -1,0 +1,60 @@
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "山田さんに連絡して、予定を確認してください。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "あきこさんに連絡して、予定を確認してください。", "must_mask": [{"span": "あきこさん", "kind": "name"}], "must_keep": ["連絡", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "みほちゃんへ明日の予定を伝えてください。", "must_mask": [{"span": "みほちゃん", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "佐藤先生へ明日の予定を伝えてください。", "must_mask": [{"span": "佐藤先生", "kind": "name"}], "must_keep": ["明日", "予定"]}
+{"text": "担当の山田さんへ、折り返しをお願いします。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["折り返し"]}
+{"text": "ひらがなの さくらちゃん に伝えてください。", "must_mask": [{"span": "さくらちゃん", "kind": "name"}], "must_keep": ["伝えて"]}
+{"text": "連絡先は０９０－１２３４－５６７８です。", "must_mask": [{"span": "０９０－１２３４－５６７８", "kind": "phone"}], "must_keep": ["連絡先"]}
+{"text": "番号は０８０ー１２３４ー５６７８です。", "must_mask": [{"span": "０８０ー１２３４ー５６７８", "kind": "phone"}], "must_keep": ["番号"]}
+{"text": "住所は東京都架空区１丁目２－３です。", "must_mask": [{"span": "東京都架空区１丁目２－３", "kind": "address"}], "must_keep": ["住所"]}
+{"text": "住所は架空県見本市４番地５号です。", "must_mask": [{"span": "架空県見本市４番地５号", "kind": "address"}], "must_keep": ["住所"]}
+{"text": "宛先はsample\n.person@example.comです。", "must_mask": [{"span": "sample\n.person@example.com", "kind": "email"}], "must_keep": ["宛先"]}
+{"text": "宛先はhello@\nexample.testです。", "must_mask": [{"span": "hello@\nexample.test", "kind": "email"}], "must_keep": ["宛先"]}
+{"text": "確認URL https://example.test/path を開いてください。", "must_mask": [{"span": "https://example.test/path", "kind": "url"}], "must_keep": ["確認"]}
+{"text": "郵便番号は〒１２３－４５６７です。", "must_mask": [{"span": "〒１２３－４５６７", "kind": "postal"}], "must_keep": ["郵便番号"]}
+{"text": "担当の山田さんへ、折り返しをお願いします。", "must_mask": [{"span": "山田さん", "kind": "name"}], "must_keep": ["折り返し"]}
+{"text": "ひらがなの さくらちゃん に伝えてください。", "must_mask": [{"span": "さくらちゃん", "kind": "name"}], "must_keep": ["伝えて"]}
+{"text": "連絡先は０９０－１２３４－５６７８です。", "must_mask": [{"span": "０９０－１２３４－５６７８", "kind": "phone"}], "must_keep": ["連絡先"]}
+{"text": "番号は０８０ー１２３４ー５６７８です。", "must_mask": [{"span": "０８０ー１２３４ー５６７８", "kind": "phone"}], "must_keep": ["番号"]}
+{"text": "住所は東京都架空区１丁目２－３です。", "must_mask": [{"span": "東京都架空区１丁目２－３", "kind": "address"}], "must_keep": ["住所"]}
+{"text": "住所は架空県見本市４番地５号です。", "must_mask": [{"span": "架空県見本市４番地５号", "kind": "address"}], "must_keep": ["住所"]}
+{"text": "宛先はsample\n.person@example.comです。", "must_mask": [{"span": "sample\n.person@example.com", "kind": "email"}], "must_keep": ["宛先"]}
+{"text": "宛先はhello@\nexample.testです。", "must_mask": [{"span": "hello@\nexample.test", "kind": "email"}], "must_keep": ["宛先"]}
+{"text": "確認URL https://example.test/path を開いてください。", "must_mask": [{"span": "https://example.test/path", "kind": "url"}], "must_keep": ["確認"]}
+{"text": "郵便番号は〒１２３－４５６７です。", "must_mask": [{"span": "〒１２３－４５６７", "kind": "postal"}], "must_keep": ["郵便番号"]}
