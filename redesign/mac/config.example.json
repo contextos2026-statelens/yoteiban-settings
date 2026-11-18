@@ -1,17 +1,23 @@
 {
-  "_説明": "固有値（番号・アドレス・名前・URL）はこのファイルの写しにだけ書く。Gitには例だけを置く。鍵は環境変数（YOTEIBAN_WEBHOOK_KEY・YOTEIBAN_AI_KEY）。",
+  "_説明": "固有値（番号・アドレス・名前・URL）はこのファイルの写しにだけ書く。Gitには例だけを置く。鍵は環境変数（YOTEIBAN_WEBHOOK_KEY・YOTEIBAN_AI_KEY）。読む先は記憶の『読む先の一覧』と同じものを全部並べる（家用カレンダーは primary とファミリーの両方）。",
   "state_dir": "~/yoteiban-watch/state",
   "interval_s": 3,
   "shadow": true,
   "webhook_url": "",
   "sources": {
     "imessage": {"enabled": true, "db_path": "~/Library/Messages/chat.db", "start_rowid": 0},
-    "gmail": {"enabled": false, "cmd": ["gog", "--enable-commands", "gmail", "-j", "--results-only", "-a", "<読むアカウント>", "gmail", "search", "newer_than:1d"]},
-    "calendar": {"enabled": false, "cmd": ["gog", "--enable-commands", "calendar", "-j", "--results-only", "-a", "<読むアカウント>", "calendar", "events", "--days", "14"]}
+    "gmails": [
+      {"name": "<入口の名前（例：家用メール）>", "enabled": false, "cmd": ["gog", "--enable-commands", "gmail", "-j", "--results-only", "-a", "<読むアカウント>", "gmail", "search", "newer_than:1d"]}
+    ],
+    "calendars": [
+      {"name": "<個人用カレンダー>", "enabled": false, "cmd": ["gog", "--enable-commands", "calendar", "-j", "--results-only", "-a", "<読むアカウント>", "calendar", "events", "--days", "35"]},
+      {"name": "<家用カレンダー（primary）>", "enabled": false, "cmd": ["gog", "--enable-commands", "calendar", "-j", "--results-only", "-a", "<読むアカウント>", "calendar", "events", "--days", "35"]},
+      {"name": "<ファミリーカレンダー>", "enabled": false, "cmd": ["gog", "--enable-commands", "calendar", "-j", "--results-only", "-a", "<読むアカウント>", "calendar", "events", "--calendar", "<カレンダーID>", "--days", "35"]}
+    ]
   },
   "roles": {"<送り主の識別子>": "家族"},
   "muted_roles": ["広告"],
   "mask_names": {"<伏せたい名前>": "家族"},
   "ai": {"enabled": false, "url": "<外部AIの応答の窓口>", "model": "<速いモデル>", "timeout_s": 6, "yen_per_1k_in": 0.03, "yen_per_1k_out": 0.12},
-  "ai_monthly_cap_yen": 300
+  "ai_monthly_cap_yen": 500
 }

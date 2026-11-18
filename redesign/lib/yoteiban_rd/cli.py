@@ -7,9 +7,13 @@ import json
 import sys
 from dataclasses import asdict
 
-from .calc import CalcError, Event, find_conflicts, parse_time, travel_check, fmt
+from datetime import date
+
+from .calc import (CalcError, Event, find_conflicts, parse_time, travel_check, fmt, conflict_kind, check_weekdays,
+                   weekday_ja, find_duplicates)
 from .urgency import Context, Item, decide
-from .nightly import Case, review
+from .nightly import Case, review, record_feedback, load_feedback, hit_rate
+from .morning import Source, build_morning, coverage
 
 
 def _ev(d: dict) -> Event:
@@ -56,8 +60,9 @@ def _check_urgency(data) -> None:
 def cmd_urgency(data: dict) -> dict:
     _check_urgency(data)
     it = dict(data["item"])
-    if it.get("time"):
-        it["time"] = parse_time(it["time"])
+    for k in ("time", "end", "recover_by"):
+        if it.get(k):
+            it[k] = parse_time(it[k])
     it["impact"] = set(it.get("impact", []))
     ctx = dict(data["context"])
     ctx["now"], ctx["next_summary"] = parse_time(ctx["now"]), parse_time(ctx["next_summary"])
@@ -71,12 +76,17 @@ def cmd_urgency(data: dict) -> dict:
 
 
 def cmd_check_write(data: dict) -> dict:
-    """書く前の検算：新しい予定と、その日の予定の重なり・移動。書いてよいかは本人の承認と ID 照合で決まる。"""
+    """書く前の検算：新しい予定と、その日の予定の重なり・移動・ダブり。書いてよいかは本人の承認と ID 照合で決まる。
+    持ち主不明（unknown）の家用の予定との重なりは止めずに unconfirmed に出す（案に未確認の1行を入れる。第22章）。"""
     new = _ev(data["new"])
     evs = [_ev(e) for e in data.get("events", [])]
-    conf = [(a.title, b.title) for a, b in find_conflicts(evs + [new]) if new in (a, b)]
+    pairs = [(a, b) for a, b in find_conflicts(evs + [new]) if new in (a, b)]
+    conf = [(a.title, b.title) for a, b in pairs if conflict_kind(a, b) == "重なり"]
+    unconf = [(a.title, b.title) for a, b in pairs if conflict_kind(a, b) == "未確認の重なり"]
+    dup = [(a.title, b.title) for a, b in find_duplicates(evs + [new]) if new in (a, b)]
     trav = [t for t in travel_check(evs + [new]) if t["event"] == new.id]
-    return {"ok": not conf and not trav, "conflicts": conf, "travel": trav}
+    return {"ok": not conf and not trav and not dup, "conflicts": conf, "unconfirmed": unconf,
+            "duplicates": dup, "travel": trav, "weekday": weekday_ja(new.start)}
 
 
 def cmd_nightly(data: dict) -> dict:
@@ -87,17 +97,56 @@ def cmd_nightly(data: dict) -> dict:
             if c.get(k):
                 c[k] = parse_time(c[k])
         cases.append(Case(**c))
+    fb = data.get("feedback")
+    if isinstance(fb, str):
+        fb = load_feedback(fb)
     return review(cases, [_ev(e) for e in data.get("events", [])], parse_time(data["now"]),
-                  data.get("goals", []), data.get("horizon_days", 14), data.get("daily_load_limit_min"))
+                  data.get("goals", []), data.get("horizon_days", 35), data.get("daily_load_limit_min"),
+                  data.get("previous"), fb, data.get("coverage"))
+
+
+def _sources(data: dict) -> list:
+    return [Source(s["key"], s["label"], s["role"], s.get("required", True)) for s in data["sources"]]
+
+
+def cmd_coverage(data: dict) -> dict:
+    return coverage(_sources(data), data.get("reads", {}))
+
+
+def cmd_morning(data: dict) -> dict:
+    return build_morning(date.fromisoformat(data["day"]), _sources(data), data.get("reads", {}), data.get("owner", {}),
+                         data.get("weather"), data.get("confirm"), data.get("notices"))
+
+
+def cmd_weekday(data: dict) -> dict:
+    base = date.fromisoformat(data["base"]) if data.get("base") else date.today()
+    out = {"mismatches": check_weekdays(data.get("text", ""), base)}
+    if data.get("date"):
+        out["weekday"] = weekday_ja(date.fromisoformat(data["date"]))
+    out["ok"] = not out["mismatches"]
+    return out
+
+
+def cmd_feedback(data: dict) -> dict:
+    return record_feedback(data["path"], data["key"], data["verdict"], parse_time(data["at"]), data.get("title", ""))
+
+
+def cmd_hit_rate(data: dict) -> dict:
+    return hit_rate(data["path"], parse_time(data["now"]), data.get("days", 7))
+
+
+COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": cmd_nightly,
+            "coverage": cmd_coverage, "morning": cmd_morning, "weekday": cmd_weekday,
+            "feedback": cmd_feedback, "hit-rate": cmd_hit_rate}
 
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("task", choices=["urgency", "check-write", "nightly"])
+    p.add_argument("task", choices=sorted(COMMANDS))
     a = p.parse_args(argv)
     try:
         data = json.load(sys.stdin)
-        out = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": cmd_nightly}[a.task](data)
+        out = COMMANDS[a.task](data)
     except InputError as e:
         out = {"error": str(e)}
         if a.task == "urgency":

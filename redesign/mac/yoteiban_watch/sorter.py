@@ -43,9 +43,18 @@ class AIClient:
         self.url, self.model, self.key, self.timeout_s = url, model, key, timeout_s
         self.rin, self.rout = yen_per_1k_in, yen_per_1k_out
 
+    MAX_OUT = 60
+    SAFETY = 1.5  # 見積もりは多めに（文字数＝トークン数とみなし、さらに1.5倍）
+
+    def max_yen(self, prompt: str) -> float:
+        """1回の呼び出しの最大額の見積もり（使用量が返らない・失敗したときもこの額で数える）。"""
+        tin = len(prompt) + 50
+        return round((tin / 1000 * self.rin + self.MAX_OUT / 1000 * self.rout) * self.SAFETY, 4)
+
     def ask(self, prompt: str) -> tuple[dict, float]:
+        """(答え, 円)。使用量欄が無い応答は見積もりの最大額で数える。"""
         if not self.key:
-            raise RuntimeError("外部AIの鍵がありません")
+            raise NotSent("外部AIの鍵がありません")
         body = json.dumps({"model": self.model, "input": [{"role": "user", "content": prompt}],
                            "max_output_tokens": 60}).encode()
         req = urllib.request.Request(self.url, data=body, method="POST", headers={
@@ -54,8 +63,26 @@ class AIClient:
             data = json.loads(r.read().decode())
         text = data.get("output_text") or _first_text(data)
         u = data.get("usage") or {}
-        yen = u.get("input_tokens", 0) / 1000 * self.rin + u.get("output_tokens", 0) / 1000 * self.rout
-        return _strict_json(text), yen
+        if "input_tokens" in u and "output_tokens" in u:
+            yen = u["input_tokens"] / 1000 * self.rin + u["output_tokens"] / 1000 * self.rout
+        else:
+            yen = self.max_yen(prompt)  # 使用量が分からないときは0円と数えない
+        try:
+            return _strict_json(text), yen
+        except ValueError as e:
+            raise ChargedError(str(e), yen) from e
+
+
+class NotSent(RuntimeError):
+    """送る前に止まった（鍵が無いなど）。費用はかからない。"""
+
+
+class ChargedError(ValueError):
+    """応答は来たが形が違う。費用はかかっている。"""
+
+    def __init__(self, msg: str, yen: float) -> None:
+        super().__init__(msg)
+        self.yen = yen
 
 
 def _first_text(data: dict) -> str:
@@ -103,17 +130,30 @@ def sort_item(text: str, role: str, source: str, *, muted_roles: set, names: dic
     r = rule_sort(text, role, source, muted_roles)
     if r:
         return r
-    if ai is None or cap_left_yen <= 0:
+    prompt = PROMPT.replace("{role}", role).replace("{body}", mask(text, names))
+    if ai is None or cap_left_yen < ai.max_yen(prompt):
+        # 1回分の最大額が月の残りを超えるなら呼ばない（上限を超えない）
         fb = fallback_sort(text)
         fb.reason += "（月の上限）" if ai is not None else ""
         return fb
     import time
     t0 = time.monotonic()
     try:
-        d, yen = ai.ask(PROMPT.replace("{role}", role).replace("{body}", mask(text, names)))
+        d, yen = ai.ask(prompt)
+    except NotSent as e:
+        fb = fallback_sort(text)
+        fb.reason += f"（外部AIを呼べない: {e}）"
+        return fb
+    except ChargedError as e:
+        fb = fallback_sort(text)
+        fb.reason += "（外部AIの答えの形が違う）"
+        fb.yen = e.yen
+        return fb
     except (urllib.error.URLError, socket.timeout, TimeoutError, ValueError, RuntimeError, OSError) as e:
+        # 送った後の失敗は、費用がかかったかもしれないので見積もりの最大額で数える
         fb = fallback_sort(text)
         fb.reason += f"（外部AI失敗: {type(e).__name__}）"
+        fb.yen = ai.max_yen(prompt)
         return fb
     ms = int((time.monotonic() - t0) * 1000)
     if d["urgent"] or (d["related"] and d["to_owner"] == "unknown"):

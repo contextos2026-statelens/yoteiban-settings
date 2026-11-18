@@ -20,9 +20,12 @@ from datetime import datetime, timedelta
 
 from .calc import CalcError, JST, latest_action_time
 
-TIERS = ("今すぐ", "今日中", "朝一番", "ふつう", "急ぎにしない", "過ぎていた")
+TIERS = ("今すぐ", "今日中", "朝一番", "ふつう", "急ぎにしない", "過ぎていた", "過ぎた予定の急ぎ")
 TIER_DELIVER = {"今すぐ": {"now"}, "今日中": {"now", "next_delivery"}, "朝一番": {"morning_top"},
-                "ふつう": {"morning"}, "急ぎにしない": {"log"}, "過ぎていた": {"morning_top"}}
+                "ふつう": {"morning"}, "急ぎにしない": {"log"}, "過ぎていた": {"morning_top"},
+                "過ぎた予定の急ぎ": {"now"}}
+PAST_B_HOURS = 6  # 第18章(b)「動ける期限が数時間以内」の上限
+UNKNOWN_SENDER_NOTE = "知らない相手です。本当か確かめてください"
 LEVELS = ("緊急", "高", "中", "低")
 HEAVY = {"体", "安全", "お金", "契約", "資格", "席", "他人を待たせる", "学業の締切"}
 IRREVERSIBLE_HEAVY = {"体", "安全", "お金", "契約", "資格", "席"}
@@ -62,6 +65,12 @@ class Item:
     importance: str | None = None  # 第19章のレベル（緊急・高・中・低）。点より優先
     importance_score: int | None = None  # 第19章の点。importance が無いときにレベルへ直す
     cannot_wait: bool = False  # 第19章の「待てない」を予定ばんが判断したとき
+    # 第18章 過ぎた予定の(a)(b)を表す入力（開始・期限がもう過ぎているときだけ使う）
+    end: datetime | None = None  # 終わりの時刻。今が終わりより前なら「途中から出られる」(a)①
+    late_ok: bool = False  # 文面に「遅れても受け付ける・連絡すれば間に合う」とある (a)②
+    preventable: bool = False  # 期限後の費用・失効を防げる手続きがあると文面から読める (a)③
+    recover_by: datetime | None = None  # いま動けば挽回・軽減できる期限 (b)
+    night_now: bool | None = None  # 補正表の「夜の即時」（True＝する／False＝しない）。夜は鳴らさないの人には True は効かない
 
 
 @dataclass
@@ -70,7 +79,7 @@ class Context:
     next_summary: datetime  # 次の朝のまとめの時刻
     quiet_start_hour: int = 22
     quiet_end_hour: int = 7
-    night_setting: str = "urgent_only"  # urgent_only（朝まで待てないものも） / safety_only（家族の急変・体・安全だけ）
+    night_setting: str = "urgent_only"  # urgent_only（急ぎだけ夜に知らせる：待てない緊急だけ夜に1回） / safety_only（夜は鳴らさない：夜に鳴るのは(c)だけ）
     remind: str = "day_once"  # day_once / none
     notify_type: int = 3  # 第20章の通知の型（1〜6。未設定の既定は3）
     next_delivery: datetime | None = None  # 型2・3の昼の次の配信時刻（無ければ記憶の値で配る）
@@ -93,6 +102,7 @@ class Decision:
     slack_min: int | None = None  # 余裕 S（行動の締切 − 次の朝のまとめ）の分
     level: str | None = None  # 使った第19章のレベル
     assumed: dict = field(default_factory=dict)  # 既定で埋めた所要
+    notes: list = field(default_factory=list)  # 知らせに添える1行（登録外の警告など）
 
 
 def _down(tier: str) -> str:
@@ -133,9 +143,12 @@ def _validate(item: Item, ctx: Context) -> None:
 def decide(item: Item, ctx: Context) -> Decision:
     _validate(item, ctx)
     level = _level(item)
-    # 1. 安全・命・家族の急変（どの設定でも夜も1回）
+    notes: list[str] = []
+    if not item.registered_source:
+        notes.append(UNKNOWN_SENDER_NOTE)
+    # 1. 家族・近い人の急変（正本(c)）。どの設定でも、夜も1回。時刻が無くても、何時間前の連絡でも
     if item.family_emergency:
-        return Decision("今すぐ", "now", ["家族・近い人の急変（正本の(c)）"], level=level)
+        return Decision("今すぐ", "now", ["家族・近い人の急変（正本の(c)）"], level=level, notes=notes)
     # 2. 本人の行動が要るか
     if not item.related:
         return Decision("急ぎにしない", "log", ["予定なし（記録だけ。urgency にかけるものではない）"], level=level)
@@ -143,18 +156,24 @@ def decide(item: Item, ctx: Context) -> Decision:
         return Decision("急ぎにしない", "log", ["本人あてではない"], level=level)
     if item.already_known:
         return Decision("急ぎにしない", "log", ["本人がもう知っている"], level=level)
-    if item.body_safety:
-        return Decision("今すぐ", "now", ["体・安全"], level=level)
-    if not item.needs_action:
-        return Decision("急ぎにしない", "log", ["本人がすることが無い"], level=level)
     reasons: list[str] = []
+    body_cannot_wait = False
+    if item.body_safety:
+        if item.registered_source:
+            # 第19章「待てない」：信頼する出どころ・家族ロスターの人からの体調の急変・事故など
+            body_cannot_wait = True
+            reasons.append("信頼する出どころからの体・安全の連絡（第19章の待てない）")
+        else:
+            reasons.append("体・安全の連絡だが登録外なので、待てないにはしない（第19章の守り(1)）")
+    elif not item.needs_action:
+        return Decision("急ぎにしない", "log", ["本人がすることが無い"], level=level)
     deadline = None
     est = False
     assumed: dict = {}
     slack_min = None
     # 3. 時刻からの段階
     if item.time is None:
-        t_tier = "ふつう"
+        t_tier = "朝一番" if item.body_safety else "ふつう"
         reasons.append("時刻が無い（保留）")
     else:
         if item.travel_min is None:
@@ -168,8 +187,7 @@ def decide(item: Item, ctx: Context) -> Decision:
             names = "・".join({"travel_min": "移動", "prep_min": "準備"}[k] for k in assumed)
             reasons.append(f"{names}の時間が書かれていないので0分で計算した（推定。行動の締切はこれより早くなりうる）")
         if item.time <= ctx.now:
-            return Decision("過ぎていた", "morning_top", ["見つけたときには過ぎていた（正本第18章）"], deadline, est,
-                            level=level, assumed=assumed)
+            return _past(item, ctx, level, deadline, est, assumed, notes)
         slack = deadline - ctx.next_summary
         slack_min = int(slack.total_seconds() // 60)
         from_now = deadline - ctx.now
@@ -195,7 +213,7 @@ def decide(item: Item, ctx: Context) -> Decision:
         else:
             t_tier = "ふつう"
             reasons.append("余裕が十分")
-        # 確かさで調整（時刻からの段階だけ。体・安全は上で返している）
+        # 確かさで調整（時刻からの段階だけ。信頼する出どころの体・安全は下で今すぐにする）
         if not item.registered_source and not item.time_in_text:
             if t_tier in ("今すぐ", "今日中"):
                 reasons.append("登録外で時刻が文面に無いので急ぎにしない（正本第19章の守り）")
@@ -205,7 +223,7 @@ def decide(item: Item, ctx: Context) -> Decision:
                 reasons.append("確かさが低いので1段下げた")
                 t_tier = _down(t_tier)
     # 4. 第19章の重要度からの段階（高い方を採る）
-    cannot_wait = item.cannot_wait
+    cannot_wait = item.cannot_wait or body_cannot_wait
     if cannot_wait and not item.registered_source and not item.time_in_text:
         cannot_wait = False
         reasons.append("登録外で時刻が文面に無いので「待てない」にしない（第19章の守り(1)）")
@@ -231,7 +249,39 @@ def decide(item: Item, ctx: Context) -> Decision:
             remind = r
     if deliver not in TIER_DELIVER[tier]:
         raise CalcError(f"段階と知らせ方が合いません: {tier} / {deliver}")
-    return Decision(tier, deliver, reasons, deadline, est, remind, slack_min, level, assumed)
+    if deliver == "now" and ctx.is_quiet() and not item.registered_source:
+        notes.append("信頼する出どころに入れる？を1回聞く（第19章の守り(2)）")
+    return Decision(tier, deliver, reasons, deadline, est, remind, slack_min, level, assumed, notes)
+
+
+def _past(item: Item, ctx: Context, level, deadline, est, assumed, notes) -> Decision:
+    """第18章 過ぎた予定。(a)(b)だけ「過ぎた予定の急ぎ」としてすぐ1回。夜は設定に従う。それ以外は朝のまとめの先頭。"""
+    reasons = ["見つけたときには過ぎていた（正本第18章）"]
+    kinds = []
+    if item.time_in_text:
+        mid = level in ("緊急", "高", "中")
+        high = level in ("緊急", "高")
+        if mid and item.end is not None and ctx.now < item.end:
+            kinds.append("(a)① 開始は過ぎたが終わりはまだ（途中から出られる）")
+        if mid and item.late_ok:
+            kinds.append("(a)② 遅れても受け付ける・連絡すれば間に合うと文面にある")
+        if mid and item.preventable:
+            kinds.append("(a)③ 期限後でも費用・失効を防げる手続きがある")
+        if high and item.recover_by is not None and ctx.now < item.recover_by <= ctx.now + timedelta(hours=PAST_B_HOURS):
+            kinds.append("(b) いますぐ動かないと挽回・軽減できない")
+    else:
+        reasons.append("開始の時刻が文面に無いので(a)(b)は当てない（第18章）")
+    if not kinds:
+        return Decision("過ぎていた", "morning_top", reasons, deadline, est, level=level, assumed=assumed, notes=notes)
+    reasons += kinds
+    if ctx.is_quiet():
+        if ctx.night_setting == "safety_only" or item.night_now is False:
+            reasons.append("夜は鳴らさない設定（または補正で夜の即時：しない）なので朝のまとめの先頭に回す（第18章）")
+            return Decision("過ぎていた", "morning_top", reasons, deadline, est, level=level, assumed=assumed, notes=notes)
+        reasons.append("急ぎだけ夜に知らせる設定なので、夜でも1回（第18章）")
+        if not item.registered_source:
+            notes.append("信頼する出どころに入れる？を1回聞く（第19章の守り(2)）")
+    return Decision("過ぎた予定の急ぎ", "now", reasons, deadline, est, level=level, assumed=assumed, notes=notes)
 
 
 def _deliver(tier, from_importance, level, cannot_wait, slack_min, item, ctx, reasons):
@@ -240,9 +290,15 @@ def _deliver(tier, from_importance, level, cannot_wait, slack_min, item, ctx, re
     if tier == "朝一番":
         return tier, "morning_top"
     quiet = ctx.is_quiet()
-    # 夜：第19章。即時は「待てない」緊急だけ（safety_only は (c)・体・安全だけで、それは上で返している）
+    # 夜：第19章。urgent_only は「待てない」緊急だけ夜に1回。safety_only は(c)だけで、(c)は上で返している
     night_cannot_wait = cannot_wait or (slack_min is not None and slack_min < 120)
     if quiet:
+        if ctx.night_setting == "urgent_only" and item.night_now is False:
+            reasons.append("補正で「夜の即時：しない」なので朝のまとめの先頭に回す")
+            return "朝一番", "morning_top"
+        if ctx.night_setting == "urgent_only" and item.night_now is True:
+            reasons.append("補正で「夜の即時：する」なので夜でも1回")
+            return tier, "now"
         if ctx.night_setting == "urgent_only" and night_cannot_wait:
             if tier == "今日中":
                 reasons.append("夜は次に届くのが朝のまとめで、余裕が2時間未満（第19章の待てない）なので夜でも1回")

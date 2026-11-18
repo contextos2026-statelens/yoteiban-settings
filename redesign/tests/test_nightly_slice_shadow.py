@@ -48,7 +48,7 @@ class SliceTest(unittest.TestCase):
         self.assertIn("本文2\n", r["text"])
         with self.assertRaises(KeyError):
             slice_for("unknown", self.SAMPLE)
-        self.assertEqual(slice_for("notify", "## 2. x\n")["missing"], [19, 20])
+        self.assertEqual(slice_for("notify", "## 2. x\n")["missing"], [12, 16, 17, 18, 19, 20, 22, 27])
 
     def test_urgency_tasks_have_ch19_20(self):
         # 急ぎの段階を決める仕事（intake・notify・nightly）は 19・20章を必ず読む（試験Bで欠けていた）
@@ -59,11 +59,12 @@ class SliceTest(unittest.TestCase):
 
     def test_skill_chapter_text_matches_map(self):
         import re
-        for t, d in (("intake", "intake"), ("notify", "notify"), ("nightly", "nightly"), ("write", "write"), ("delegate", "delegate")):
+        for d in ("intake", "notify", "nightly", "write", "delegate", "infer", "adjust", "interval", "setup"):
             txt = open(os.path.join(_paths.ROOT, "skills", d, "SKILL.md"), encoding="utf-8").read()
-            m = re.search(r"--task " + t + r"`（([\d・]+)章）", txt)
-            self.assertIsNotNone(m, t)
-            self.assertEqual([int(x) for x in m.group(1).split("・")], TASK_CHAPTERS[t], t)
+            m = re.search(r"--task (\w+)`（第([\d・]+)章）", txt)
+            self.assertIsNotNone(m, d)
+            self.assertEqual(m.group(1), d)
+            self.assertEqual([int(x) for x in m.group(2).split("・")], TASK_CHAPTERS[d], d)
 
     def test_every_task_has_principles(self):
         for t, ch in TASK_CHAPTERS.items():
@@ -76,7 +77,7 @@ class SliceTest(unittest.TestCase):
         for t in TASK_CHAPTERS:
             r = slice_for(t, text)
             self.assertEqual(r["missing"], [], t)
-            self.assertLess(r["chars"], r["full_chars"] * 0.4, t)
+            self.assertLess(r["chars"], r["full_chars"] * 0.5, t)  # 参照する章を足した後でも半分未満
 
 
 class ShadowTest(unittest.TestCase):
