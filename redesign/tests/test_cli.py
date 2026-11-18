@@ -48,7 +48,7 @@ class CliErrorTest(unittest.TestCase):
     def test_documented_example_runs(self):
         import re
         txt = open(os.path.join(_paths.ROOT, "skills", "intake", "SKILL.md"), encoding="utf-8").read()
-        block = re.search(r"```json\n(.*?)```", txt, re.S).group(1)
+        block = re.search(r"`(\{\"item\".*?)`", txt, re.S).group(1)
         rc, out = run("urgency", json.loads(block))
         self.assertEqual(rc, 0)
         self.assertEqual((out["tier"], out["deliver"]), ("今すぐ", "now"))

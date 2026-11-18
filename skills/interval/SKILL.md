@@ -5,7 +5,7 @@ description: >-
 ---
 予定ばんの確認間隔の学習
 
-まず汎用ルールの正本 `/home/box/agent-data/yoteiban-rules/seihon.md` を読む。版はGitの `VERSION`に従い、本文に版番号は直書きしない。
+まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd /home/box/agent-data/yoteiban-redesign/lib && python3 -m yoteiban_rd.rules_slice --task interval`（第2・25・26・27章）。終了コード3なら全文を読んで続ける。版はGitの `VERSION` に従い、本文に版番号は直書きしない。
 
 このスキルは予定ばんのスキル群の1つです。動く前に必ず「予定ばんの運用ルール」も読みます。安全の線（大原則）はそちらが最優先です。初回設定と自己試験への追加分もここに書いてあります。新しい連絡を見に行く間隔（R1）を、初回設定で選んでもらい、届き方の記録から本人の承認後に調整するときに読みます。
 

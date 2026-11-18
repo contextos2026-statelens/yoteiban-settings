@@ -7,7 +7,7 @@ ROOT = _paths.ROOT
 SKIP_DIRS = {"findings", "__pycache__", ".git"}
 SKIP_FILES = {"GIT_MANIFEST.md"}  # ファイルの照合値（16進）の一覧なので番号の形に当たる
 PATTERNS = {
-    "メール": re.compile(r"[A-Za-z0-9._%+-]+@(?!example\.com)[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
+    "メール": re.compile(r"[A-Za-z0-9._%+-]+@(?![A-Za-z0-9.-]*example\.(?:com|test)\b)[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),  # 試験用の example.com・example.test は除く
     "電話": re.compile(r"(?<!\d)(?:\+81|0)\d{1,4}-?\d{2,4}-?\d{3,4}(?!\d)"),
     "UUID": re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I),
     "長い16進ID": re.compile(r"(?<![0-9a-f])[0-9a-f]{24,}(?![0-9a-f])"),

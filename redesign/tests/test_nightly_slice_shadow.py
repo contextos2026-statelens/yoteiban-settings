@@ -48,22 +48,27 @@ class SliceTest(unittest.TestCase):
         self.assertIn("本文2\n", r["text"])
         with self.assertRaises(KeyError):
             slice_for("unknown", self.SAMPLE)
-        self.assertEqual(slice_for("notify", "## 2. x\n")["missing"], [19, 20])
+        self.assertEqual(slice_for("notify", "## 2. x\n")["missing"], [12, 16, 17, 18, 19, 20, 22, 27])
 
     def test_urgency_tasks_have_ch19_20(self):
         # 急ぎの段階を決める仕事（intake・notify・nightly）は 19・20章を必ず読む（試験Bで欠けていた）
+        from yoteiban_rd.rules_slice import task_chapter_nos
         for t in ("intake", "notify", "nightly"):
-            self.assertIn(19, TASK_CHAPTERS[t], t)
-            self.assertIn(20, TASK_CHAPTERS[t], t)
-        self.assertIn(20, TASK_CHAPTERS["write"])  # 型による自動追加の範囲
+            self.assertIn(19, task_chapter_nos(t), t)
+            self.assertIn(20, task_chapter_nos(t), t)
+        self.assertIn(20, task_chapter_nos("write"))  # 型による自動追加の範囲
+        for t in ("intake", "write"):  # 急ぎ・自動追加には型（20.1）・動き（20.2）・静かな時間（20.6）が要る
+            for s in ("20.1", "20.2", "20.6"):
+                self.assertIn(s, TASK_CHAPTERS[t], t)
 
     def test_skill_chapter_text_matches_map(self):
         import re
-        for t, d in (("intake", "intake"), ("notify", "notify"), ("nightly", "nightly"), ("write", "write"), ("delegate", "delegate")):
+        for d in ("intake", "notify", "nightly", "write", "delegate", "infer", "adjust", "interval", "setup", "chat"):
             txt = open(os.path.join(_paths.ROOT, "skills", d, "SKILL.md"), encoding="utf-8").read()
-            m = re.search(r"--task " + t + r"`（([\d・]+)章）", txt)
-            self.assertIsNotNone(m, t)
-            self.assertEqual([int(x) for x in m.group(1).split("・")], TASK_CHAPTERS[t], t)
+            m = re.search(r"--task (\w+)`（第([\d・.]+)章）", txt)
+            self.assertIsNotNone(m, d)
+            self.assertEqual(m.group(1), d)
+            self.assertEqual(m.group(2).split("・"), [str(x) for x in TASK_CHAPTERS[d]], d)
 
     def test_every_task_has_principles(self):
         for t, ch in TASK_CHAPTERS.items():
@@ -76,7 +81,9 @@ class SliceTest(unittest.TestCase):
         for t in TASK_CHAPTERS:
             r = slice_for(t, text)
             self.assertEqual(r["missing"], [], t)
-            self.assertLess(r["chars"], r["full_chars"] * 0.4, t)
+            if "### 20.1 " in text:
+                self.assertEqual(r["widened"], [], t)  # 節の見出しのある正本では、節が全部見つかる
+            self.assertLess(r["chars"], r["full_chars"] * 0.5, t)  # 参照する章を足した後でも半分未満
 
 
 class ShadowTest(unittest.TestCase):

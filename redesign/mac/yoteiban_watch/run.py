@@ -60,21 +60,33 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
         try:
             items = read_imessage(src["imessage"]["db_path"], cur)
             batches.append(("imessage", items, str(max([int(i.native_id) for i in items], default=cur))))
+            stats.setdefault("read_ok", []).append("imessage")
         except SourceError as e:
             stats["unreadable"].append(("imessage", str(e)))
-    if src.get("gmail", {}).get("enabled"):
+    # Gmail・カレンダーは複数（読む先の一覧の全部）。古い1つだけの書き方（gmail・calendar）も読む
+    gmails = list(src.get("gmails", [])) + ([dict(src["gmail"], name="gmail")] if src.get("gmail") else [])
+    cals = list(src.get("calendars", [])) + ([dict(src["calendar"], name="calendar")] if src.get("calendar") else [])
+    for g in gmails:
+        if not g.get("enabled"):
+            continue
+        key = "gmail" if g["name"] == "gmail" else "gmail:" + g["name"]
         try:
-            items = read_gmail(src["gmail"]["cmd"], store.cursor("gmail"))
-            batches.append(("gmail", items, max([i.at for i in items], default=store.cursor("gmail") or "")))
+            items = read_gmail(g["cmd"], store.cursor(key))
+            batches.append((key, items, max([i.at for i in items], default=store.cursor(key) or "")))
+            stats.setdefault("read_ok", []).append(key)
         except SourceError as e:
-            stats["unreadable"].append(("gmail", str(e)))
-    if src.get("calendar", {}).get("enabled"):
+            stats["unreadable"].append((key, str(e)))
+    for c in cals:
+        if not c.get("enabled"):
+            continue
+        key = "calendar" if c["name"] == "calendar" else "calendar:" + c["name"]
         try:
-            known = json.loads(store.cursor("calendar") or "{}")
-            items, now_map = read_calendar_changes(src["calendar"]["cmd"], known)
-            batches.append(("calendar", items, json.dumps(now_map)))
+            known = json.loads(store.cursor(key) or "{}")
+            items, now_map = read_calendar_changes(c["cmd"], known)
+            batches.append((key, items, json.dumps(now_map)))
+            stats.setdefault("read_ok", []).append(key)
         except SourceError as e:
-            stats["unreadable"].append(("calendar", str(e)))
+            stats["unreadable"].append((key, str(e)))
     month = datetime.now().strftime("%Y-%m")
     cap = float(cfg.get("ai_monthly_cap_yen", 0))
     for source, items, new_cursor in batches:
@@ -85,7 +97,7 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
             if not created:
                 continue
             stats["new"] += 1
-            r = sort_item(inc.text, role, source, muted_roles=set(cfg.get("muted_roles", [])),
+            r = sort_item(inc.text, role, source.split(":")[0], muted_roles=set(cfg.get("muted_roles", [])),
                           names=cfg.get("mask_names", {}), ai=ai, cap_left_yen=cap - store.month_cost(month))
             if r.yen:
                 store.add_cost(month, r.yen)

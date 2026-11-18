@@ -1,7 +1,12 @@
 {
   "_説明": "箱側の設定の例。本物の値は記憶と出どころ設定表にあり、Gitには例だけを置く。",
-  "write_calendar_id": "<書き込み先の個人用カレンダーのID>",
-  "household_calendar_ids": ["<家用カレンダーのID（読むだけ）>"],
+  "write_calendar_id": "<書き込み先の個人用カレンダーのID（記憶の『個人用カレンダーID』）>",
+  "read_list": [
+    {"key": "personal", "label": "個人用カレンダー", "role": "personal", "required": true, "tool": "<読む道具と名前空間>", "calendar_id": "<ID>"},
+    {"key": "household", "label": "家用カレンダー", "role": "household", "required": true, "tool": "<読む道具と名前空間>", "calendar_id": "primary"},
+    {"key": "family", "label": "ファミリーカレンダー", "role": "family", "required": true, "tool": "<読む道具と名前空間>", "calendar_id": "<ID>"}
+  ],
+  "owner": {"self_names": ["<本人の呼ばれ方>"], "roster": ["<家族の呼び名>"], "table": [{"word": "<語>", "class": "self"}], "learned": [], "self_emails": ["<本人のアドレス>"]},
   "quiet_hours": {"start": 22, "end": 7},
   "morning_summary_time": "07:00",
   "night_setting": "urgent_only",
@@ -9,10 +14,11 @@
   "goals": ["<目的の一覧（5〜10行）>"],
   "daily_load_limit_min": null,
   "tools": {
-    "seihon": "<正本 seihon.md の箱の写しの場所>",
-    "casebook_py": "<tools/stage2/casebook.py の箱の写しの場所>",
-    "delegation_py": "<tools/stage2/delegation.py の箱の写しの場所>",
-    "redesign_lib": "<redesign/lib の箱の写しの場所>"
+    "seihon": "/home/box/agent-data/yoteiban-rules/seihon.md",
+    "redesign_lib": "/home/box/agent-data/yoteiban-redesign/lib",
+    "casebook_py": "/home/box/agent-data/yoteiban-tools/stage2/casebook.py",
+    "delegation_py": "/home/box/agent-data/yoteiban-tools/stage2/delegation.py",
+    "nightly_state": "/home/box/agent-data/yoteiban-state/nightly"
   },
   "shadow": {"enabled": true, "days": 7, "pass": {"missed_by_new": 0, "agreement_min": 0.9, "shadow_output_attempts": 0}}
 }

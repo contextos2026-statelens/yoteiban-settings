@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 import re
+import unicodedata
 
 JST = timezone(timedelta(hours=9))
 
@@ -92,36 +93,69 @@ def overlaps(a: Event, b: Event) -> bool:
 
 
 def find_conflicts(events: list[Event], owner_only: bool = True) -> list[tuple[Event, Event]]:
-    """本人（self/all）の予定どうしの重なり。移動・準備がその予定自身に付いたものは除く。"""
-    evs = [e for e in events if not e.all_day and (not owner_only or e.owner in ("self", "all"))]
+    """本人（self/all）の予定どうしの重なりと、本人の予定と持ち主不明（unknown）の家用の予定の重なり。
+    unknown との重なりは「未確認」の1行を添えて出すため（正本22章）。unknown どうし・他人（other）は数えない。
+    同じ予定の写し（ダブり）は重なりにしない。"""
+    evs = [e for e in events if not e.all_day and (not owner_only or e.owner in ("self", "all", "unknown"))]
     evs.sort(key=lambda e: e.start)
     out = []
     for i, a in enumerate(evs):
         for b in evs[i + 1:]:
             if b.start >= a.end:
                 break
-            if overlaps(a, b) and not _same_plan(a, b):
+            if owner_only and a.owner == "unknown" and b.owner == "unknown":
+                continue
+            if overlaps(a, b) and not is_duplicate(a, b):
                 out.append((a, b))
     return out
 
 
+def conflict_kind(a: Event, b: Event) -> str:
+    """重なりの種類。持ち主不明が入るものは「未確認の重なり」（案は出してよいが未確認の1行を入れる）。"""
+    return "未確認の重なり" if "unknown" in (a.owner, b.owner) else "重なり"
+
+
 def _same_plan(a: Event, b: Event) -> bool:
-    # 同じ時刻・同じ件名（家用と個人用の写し）は重なりではなくダブり
-    return a.start == b.start and a.end == b.end and a.title == b.title
+    return is_duplicate(a, b)
+
+
+_HONORIFIC = re.compile(r"(さん|ちゃん|くん|君|様|さま)$")
+
+
+def norm_text(t: str) -> str:
+    """表記ゆれをそろえる：全半角（NFKC）・カタカナ→ひらがな・空白と記号を除く・小文字。"""
+    t = unicodedata.normalize("NFKC", t or "").lower()
+    t = "".join(chr(ord(c) - 0x60) if "ァ" <= c <= "ヶ" else c for c in t)
+    return re.sub(r"[\s　・、。,.:：/／()（）【】\[\]「」『』!！?？~〜\-ー_]+", "", t)
+
+
+def is_duplicate(a: Event, b: Event) -> bool:
+    """同じ予定の二重登録か。時刻が同じで、件名がそろえて同じか、短い方が長い方に含まれる（2文字以上）。
+    同じカレンダーの中の二重登録も、家用と個人用の写しも数える。"""
+    if a.all_day or b.all_day or a.start != b.start:
+        return False
+    if a.end != b.end and abs((a.end - b.end).total_seconds()) > 15 * 60:
+        return False
+    na, nb = norm_text(a.title), norm_text(b.title)
+    if not na or not nb:
+        return False
+    short, long_ = sorted((na, nb), key=len)
+    return na == nb or (len(short) >= 2 and short in long_)
 
 
 def find_duplicates(events: list[Event]) -> list[tuple[Event, Event]]:
+    """ダブり（同じカレンダーの中の二重登録・家用と個人用の写し・件名の少しの違い）。何も消さない。"""
     evs = [e for e in events if not e.all_day]
     out = []
     for i, a in enumerate(evs):
         for b in evs[i + 1:]:
-            if a.calendar != b.calendar and _norm(a.title) == _norm(b.title) and a.start == b.start:
+            if a.id != b.id and is_duplicate(a, b):
                 out.append((a, b))
     return out
 
 
 def _norm(t: str) -> str:
-    return re.sub(r"[\s　]+", "", t or "")
+    return norm_text(t)
 
 
 def free_slots(events: list[Event], day_start: datetime, day_end: datetime,
@@ -152,20 +186,24 @@ def latest_action_time(start: datetime, travel_min: int | None, prep_min: int | 
 
 
 def travel_check(events: list[Event]) -> list[dict]:
-    """場所のある予定の前に移動の予定が無い・移動が間に合わない・帰りの移動だけがある、を見つける。"""
+    """場所のある予定の前に移動の予定が無い・移動が間に合わない・帰りの移動だけがある、を見つける。
+    移動は、予定の開始の3時間前から開始までに始まるものを「その予定への移動」とみなす。
+    その移動の終わりが予定の開始より後なら「移動が間に合わない」。"""
     evs = sorted([e for e in events if not e.all_day and e.owner in ("self", "all")], key=lambda e: e.start)
     moves = [e for e in evs if e.kind == "move"]
     findings = []
     for e in evs:
         if e.kind in ("move", "prep", "meal") or not e.location:
             continue
-        before = [m for m in moves if m.end <= e.start and e.start - m.end <= timedelta(hours=2)]
+        before = [m for m in moves if m.start < e.start and e.start - m.start <= timedelta(hours=3)
+                  and m.meta.get("direction") != "return"]
         if not before:
             findings.append({"type": "移動の予定が無い", "event": e.id, "title": e.title})
-        else:
-            m = before[-1]
-            if m.end > e.start:
-                findings.append({"type": "移動が間に合わない", "event": e.id, "title": e.title})
+            continue
+        m = max(before, key=lambda x: x.start)
+        if m.end > e.start:
+            late = int((m.end - e.start).total_seconds() // 60)
+            findings.append({"type": "移動が間に合わない", "event": e.id, "title": e.title, "late_min": late})
     for m in moves:
         prior = [e for e in evs if e.kind not in ("move", "prep", "meal") and e.end <= m.start
                  and m.start - e.end <= timedelta(hours=3)]
@@ -177,11 +215,61 @@ def travel_check(events: list[Event]) -> list[dict]:
 
 
 def day_load_minutes(events: list[Event], day: date) -> int:
-    """その日の本人の予定の合計（分）。作業量の目安の検算用。"""
-    total = 0
-    for e in events:
-        if e.all_day or e.owner not in ("self", "all"):
-            continue
-        if e.start.astimezone(JST).date() == day:
-            total += int((e.end - e.start).total_seconds() // 60)
+    """その日の本人の予定の合計（分）。日をまたぐ予定は、その日に入る分だけ数える。重なりは二重に数えない。"""
+    d0 = datetime(day.year, day.month, day.day, tzinfo=JST)
+    d1 = d0 + timedelta(days=1)
+    spans = sorted((max(e.start, d0), min(e.end, d1)) for e in events
+                   if not e.all_day and e.owner in ("self", "all") and e.end > d0 and e.start < d1)
+    total, cur = 0, d0
+    for s_, e_ in spans:
+        s_ = max(s_, cur)
+        if e_ > s_:
+            total += int((e_ - s_).total_seconds() // 60)
+            cur = e_
     return total
+
+
+WEEKDAY_JA = "月火水木金土日"
+
+
+def weekday_ja(d: date | datetime) -> str:
+    """曜日（月〜日）。確認文の「11/23(月)」の検算に使う。"""
+    if isinstance(d, datetime):
+        d = d.astimezone(JST).date()
+    return WEEKDAY_JA[d.weekday()]
+
+
+def fmt_md(dt: datetime, with_time: bool = True) -> str:
+    """「11/18(水) 13:50」の形。"""
+    j = dt.astimezone(JST)
+    s = f"{j.month}/{j.day}({weekday_ja(j)})"
+    return s + (f" {j:%H:%M}" if with_time else "")
+
+
+_MD_WD = re.compile(r"(?:(\d{4})[/年-])?(\d{1,2})[/月](\d{1,2})日?\s*[(（]([月火水木金土日])[)）]")
+
+
+def check_weekdays(text: str, base: date) -> list[dict]:
+    """文の中の「11/23(月)」「12月5日(土)」の曜日を確かめる。年が無ければ base 以降でいちばん近い年。
+    合わないものを返す（空なら全部合っている）。"""
+    out = []
+    for m in _MD_WD.finditer(text or ""):
+        y, mo, d, wd = m.groups()
+        mo, d = int(mo), int(d)
+        if y:
+            yy = int(y)
+        else:
+            yy = base.year
+            try:
+                if date(yy, mo, d) < base - timedelta(days=31):
+                    yy += 1
+            except ValueError:
+                pass
+        try:
+            real = weekday_ja(date(yy, mo, d))
+        except ValueError:
+            out.append({"text": m.group(0), "error": "ありえない日付"})
+            continue
+        if real != wd:
+            out.append({"text": m.group(0), "date": f"{yy}-{mo:02d}-{d:02d}", "written": wd, "real": real})
+    return out
