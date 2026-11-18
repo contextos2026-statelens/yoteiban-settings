@@ -74,6 +74,19 @@ class IntakeTests(unittest.TestCase):
         self.assertEqual(first["input_id"], second["input_id"])
         self.assertEqual(self.ledger.conn.execute("select count(*) from raw_inputs").fetchone()[0], 1)
 
+    def test_wake_stores_masked_name_and_email(self):
+        self.cfg["mask_known_names"] = ["田中花子"]
+        text = "田中花子さんへの連絡先はhanako.tanaka@example.comです。明日10時に集合します。"
+        body = self._payload(body_text=text)
+        result = handle(self.ledger, self.cfg, signed(body), body, NOW, SECRET)
+        self.assertTrue(result["ok"])
+        row = self.ledger.conn.execute("select body_masked from raw_inputs where input_id=?",
+                                       (result["input_id"],)).fetchone()
+        masked = row["body_masked"]
+        self.assertTrue(masked)
+        self.assertNotIn("田中花子", masked)
+        self.assertNotIn("hanako.tanaka@example.com", masked)
+
     def test_review_reports_due_without_writing(self):
         case_id = "case-review"
         self.ledger.upsert_case({"case_id": case_id, "kind": "確認", "title": "予定の確認",

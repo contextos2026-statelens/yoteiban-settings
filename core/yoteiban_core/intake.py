@@ -114,6 +114,19 @@ def handle(ledger, cfg, headers, body_bytes, now, secret):
     if not isinstance(sender_role, str):
         return _result(request_id=request_id, reason="sender_role が不正です")
 
+    # 読み取り係に渡す本文だけを伏せ字化する。伏せ字機能が無い場合や
+    # 消し残しが検出された場合は空にし、後段でボット自身が読む。
+    body_masked = ""
+    try:
+        from .mask import MaskLeak, guard
+    except ImportError:
+        pass
+    else:
+        try:
+            body_masked = guard(body_text, cfg.get("mask_known_names", []))
+        except MaskLeak:
+            body_masked = ""
+
     # request IDとingestを同じSQLite transactionに記録し、再送・競合時も二重作成を防ぐ。
     with ledger.tx():
         ledger.conn.execute("CREATE TABLE IF NOT EXISTS intake_requests (request_id TEXT PRIMARY KEY, input_id TEXT NOT NULL)")
@@ -123,6 +136,7 @@ def handle(ledger, cfg, headers, body_bytes, now, secret):
             return _result(True, request_id, input_id, False, "同じrequest_idを受け取り済みです")
         input_id, created = ledger.ingest({"source": source, "native_ref": native_ref,
                                            "received_at": received_at, "body_text": body_text,
+                                           "body_masked": body_masked,
                                            "sender_role": sender_role}, now=at)
         ledger.conn.execute("INSERT INTO intake_requests(request_id,input_id) VALUES(?,?)", (request_id, input_id))
     return _result(True, request_id, input_id, created, "受け取りました" if created else "入力済みです")
