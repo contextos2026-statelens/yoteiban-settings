@@ -18,4 +18,8 @@ description: >-
 6. 口頭の定期確認：前回の控え（`/home/box/agent-data/yoteiban-state/last_check.json`）からの差分だけを返す：`python3 -m yoteiban_rd.cli diff`（前回の控え・今回読んだもの・読めなかった入口・読んだ範囲を渡す）。full_needed が true（控えが無い・12時間より古い）のときだけ、全部を読む定期確認をする。読めなかった入口があれば「〇〇は未確認」と書き、「変わりなし」とは言わない（can_say_no_change が true のときだけ言える）。定期確認・朝のまとめ・口頭の確認の最後に、今回の控えを `cli snapshot`（または diff の snapshot）で last_check.json に保存する。
 7. 目安を超えそうなとき（読む先が遅い・件数が多い）：分かった分を先に返し、読めていない入口は「未確認」と書く。残りは次の返事で続ける。
 
+8. 待ち時間を記録する（手を増やさない）：最後の並列の1手（書く・記録する、または返事の直前の呼び出し）に、次の1行の追記を入れる。
+   `echo '{"asked_at":"<本人の発言の時刻>","logged_at":"'"$(date '+%Y-%m-%d %H:%M:%S')"' JST","scene":"simple|dialog|multi","adjustments":<調整の数>}' >> /home/box/agent-data/yoteiban-state/latency.jsonl`
+   scene：単発で簡単＝simple、本人が待つ対話＝dialog、複数の頼みを一度に＝multi。本人の名前・件名・本文は書かない（時刻と場面と数だけ）。ルーチン（本人が待たない定期確認）は記録しない。判定は `cli latency`（path にこのファイル）で行う。
+
 変更の記録は Git の CHANGELOG.md に従う。
