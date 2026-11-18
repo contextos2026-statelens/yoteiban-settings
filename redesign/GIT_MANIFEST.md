@@ -1,25 +1,27 @@
 # Git に入れるファイル一覧（再設計版）
 
-置き場所：リポジトリ contextos2026-statelens/yoteiban-settings の **redesign/** の下に、この表の左の配置のまま置く。tools/・rules/seihon.md は変えない。1.0.22 からは skills/ も新しい本文に入れ替える（本番への切り替えは1本ずつ、別の手順で行う）。
+置き場所：リポジトリ contextos2026-statelens/yoteiban-settings の **redesign/** の下に、この表の左の配置のまま置く。tools/ は変えない。rules/seihon.md は第20章・第21章に節の見出しだけを足した（本文は同じ。2026-11-18 本人承認）。1.0.22 からは skills/ も新しい本文に入れ替える（本番への切り替えは1本ずつ、別の手順で行う）。
 
 受け渡し場所：ボット固有ストアの redesign-handoff/redesign/。git hash-object の値で照合する。
 
-ファイル数：45（この表）＋ GIT_MANIFEST.md ＝ 46
+ファイル数：48（この表）＋ GIT_MANIFEST.md ＝ 49
 
 | リポジトリ内の場所 | git hash-object |
 |---|---|
+| redesign/.gitignore | 7a60b85e148f80966a550e5ab6a762a907c69ca6 |
 | redesign/DESIGN.md | 0e7c70c678a26d9b4fd13a06513e28f48bf1feca |
 | redesign/README.md | d5df2996471cf1187fa92738bfd2f9a1f7f94bc2 |
 | redesign/config/settings.example.json | 84541fd172eb155488b35bf94d764ef821382695 |
-| redesign/docs/R3_MAPPING.md | 12cef9c1a01b528af3f173e9fc338df18cb517f9 |
+| redesign/docs/R3_MAPPING.md | 6464620a2d4b8f42f021a087531ac8aa8f0d6947 |
 | redesign/lib/yoteiban_rd/__init__.py | ed569e6be5d8efe0247bb7626e9c0c7dd7b3ecd0 |
 | redesign/lib/yoteiban_rd/calc.py | 995a4d2e22a17fa570efc76f72fb23e1d8aadb38 |
-| redesign/lib/yoteiban_rd/cli.py | e05bc04761a5a94931481da820505fc25e66b420 |
+| redesign/lib/yoteiban_rd/cli.py | 4e59554410833b8cc32bd39b6a1e85ac06df61b2 |
 | redesign/lib/yoteiban_rd/household.py | 82ee296c6cf1ac5979ba9a09e5212315cc55d829 |
 | redesign/lib/yoteiban_rd/morning.py | 0d8d697a1578f884ec644f8ac4c0aee8d4bc4a9f |
 | redesign/lib/yoteiban_rd/nightly.py | 57bc725ed4389e246afa693219299994743151db |
-| redesign/lib/yoteiban_rd/rules_slice.py | 6c33c9e537ae739f07719972ef502d1e3ef95864 |
-| redesign/lib/yoteiban_rd/selfcheck.py | d8165633fa406406d8c64101245bb7fae9332d1f |
+| redesign/lib/yoteiban_rd/quick.py | 9c6124db258956c8b8553b88e299049528581a48 |
+| redesign/lib/yoteiban_rd/rules_slice.py | 19e0452ff8ddf2b1befbc80e94674e862b5f9b0c |
+| redesign/lib/yoteiban_rd/selfcheck.py | 4a86332aedc0932776c4d802fa785e6abf232767 |
 | redesign/lib/yoteiban_rd/send_flow.py | 1ff242531b053f0a6b262b65ba7e4f0397661c01 |
 | redesign/lib/yoteiban_rd/shadow.py | 3b9658ba016e41b3689aceb09cbee113995a1862 |
 | redesign/lib/yoteiban_rd/urgency.py | 11ba8f5004dbe720beedf400dff618a2c53f004b |
@@ -34,24 +36,25 @@
 | redesign/mac/yoteiban_watch/store.py | 82583fb8c2c8f808385166db4c4653bb0e3b6329 |
 | redesign/mac/yoteiban_watch/waker.py | b6aec8cc927a02defe4c54cce5dbf584361064f4 |
 | redesign/skills/adjust/SKILL.md | 7773d766b91c185621b55fb6b91095ff6214f0a9 |
-| redesign/skills/common/SKILL.md | 766034e2ea15b6fc667012d2ce49dc10fbd54585 |
+| redesign/skills/chat/SKILL.md | 6a6652e89a80e3374ee5f39274ab9a16381d812c |
+| redesign/skills/common/SKILL.md | 8262e526e2c4e600026b303f45558e2233f1d5bb |
 | redesign/skills/delegate/SKILL.md | 19533dfd8ed398c9887a3b17060291a4c6992d26 |
-| redesign/skills/infer/SKILL.md | 0dba902c5b72b5d9da13dcd55c7a3e1749eeb29f |
-| redesign/skills/intake/SKILL.md | 685634bfdf222e98620f822ec4ea9154696827d4 |
+| redesign/skills/infer/SKILL.md | 2d617a8504441e4c4eee0df3fc30a37799623eaf |
+| redesign/skills/intake/SKILL.md | 1a9ffc75037866fac5f468cf615654af52527072 |
 | redesign/skills/interval/SKILL.md | bdb5695a6ef4de7e2ccddebf0496acabe68c02f8 |
-| redesign/skills/nightly/SKILL.md | ceb048e5deeab217d7aaf1665e756b0a7dd9a948 |
-| redesign/skills/notify/SKILL.md | a4a7ba6bb2bd97c435159dcddef32a0d5f8b7b78 |
+| redesign/skills/nightly/SKILL.md | 405842944ed8563d6bdda2a02a75327718908e54 |
+| redesign/skills/notify/SKILL.md | 40f537e2f9056a54f0e13f38502c96edda740ab0 |
 | redesign/skills/selftest/SKILL.md | f05436425a51f68d0a458eb347388a66a4d4626b |
 | redesign/skills/setup/SKILL.md | 47fca09c478e1aa43411b8b81ba8ac7b0d935528 |
-| redesign/skills/write/SKILL.md | 4e0bbd897f720f39e3871f00d6e1d0d712352d7c |
-| redesign/tests/_paths.py | c4d30c9384587831c67fe8f344ad27de63adc4f2 |
+| redesign/skills/write/SKILL.md | 32206add45ef1279cf3666dccfcd7d3c3cee5c35 |
+| redesign/tests/_paths.py | a41dcc132e1f1b5a217d177db61dfa445950aef6 |
 | redesign/tests/test_adversarial.py | 44e9bbbf05ff46c822f3229066ff2c500cfa9a2d |
 | redesign/tests/test_calc_urgency.py | f6596c7f31044ba691d88f1a9a0185cd34cf9b4f |
 | redesign/tests/test_cli.py | bc69a5221c6143ea4e7370922ba4d5137a632993 |
 | redesign/tests/test_mac.py | 8773219febfc177429529f589b8a8f01a4fce79d |
-| redesign/tests/test_nightly_slice_shadow.py | 70eb549ceabb02d00bdb7c8b2c99e2ed8d9101c7 |
+| redesign/tests/test_nightly_slice_shadow.py | ac16ec0cac8d94f462158a42af991a36c3ca684e |
 | redesign/tests/test_no_fixed_values.py | e7f675f9f3d3ce83713ed031b574f2acc5c7c68a |
-| redesign/tests/test_safety_rules.py | 4d7565e83e1c6e87e2d6719e79ff17415c00990f |
+| redesign/tests/test_safety_rules.py | fc6b5eb1ab44a86095f84a1c84e4c20873599957 |
 | redesign/tests/test_send_flow.py | b056fac3a67185aa0fa588026b7016a3a5c79e95 |
 
 ## 入れないもの

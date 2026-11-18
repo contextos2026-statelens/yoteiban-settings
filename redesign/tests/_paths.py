@@ -7,5 +7,6 @@ DELEGATION_PY = os.environ.get("YRD_DELEGATION_PY") or next(
     (p for p in (os.path.join(ROOT, "..", "tools", "stage2", "delegation.py"),
                  "/home/box/agent-data/yoteiban-tools/stage2/delegation.py") if os.path.exists(p)), "")
 SEIHON = os.environ.get("YRD_SEIHON") or next(
-    (p for p in (os.path.join(ROOT, "..", "seihon.md"), "/home/box/agent-data/yoteiban-rules/seihon.md")
+    (p for p in (os.path.join(ROOT, "..", "rules", "seihon.md"), os.path.join(ROOT, "..", "seihon.md"),
+               "/home/box/agent-data/yoteiban-rules/seihon.md")
      if os.path.exists(p)), "")

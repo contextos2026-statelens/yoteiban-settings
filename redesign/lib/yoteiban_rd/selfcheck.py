@@ -26,7 +26,9 @@ def check(seihon: str = DEFAULT_SEIHON, lib_home: str = LIB_HOME) -> dict:
     if text is not None:
         for t in TASK_CHAPTERS:
             r = slice_for(t, text)
-            slices[t] = {"chars": r["chars"], "missing": r["missing"]}
+            slices[t] = {"chars": r["chars"], "missing": r["missing"], "widened": r["widened"]}
+            if r["widened"]:
+                problems.append(f"{t} の節が正本に見つかりません: {r['widened']}（章全部を読んで続ける。正本を Git の版にそろえる）")
             if r["missing"]:
                 problems.append(f"{t} の章が見つかりません: {r['missing']}（全文に戻って続ける）")
     return {"ok": not problems, "lib": here, "seihon": seihon, "slices": slices, "problems": problems,
