@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import secrets
 import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from .db import connect, migrate
 
@@ -220,3 +220,216 @@ class Ledger:
             before = json.loads(row[0]) if row else None
             self.conn.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, _json(value)))
             self.conn.execute("INSERT INTO history(h_id,case_id,at,actor,change,reason,basis) VALUES(?,?,?,?,?,?,?)", (secrets.token_hex(12), "setting:"+key, at, actor, _json({"setting": {"before": before, "after": value}}), "設定を更新", ""))
+
+    @staticmethod
+    def _digest(text):
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def _record_history(self, case_id, change, reason, now, actor="ボット", basis=""):
+        self.conn.execute("INSERT INTO history(h_id,case_id,at,actor,change,reason,basis) VALUES(?,?,?,?,?,?,?)", (secrets.token_hex(12), case_id, now, actor, _json(change), reason, basis))
+
+    def ingest(self, raw, now=None):
+        if not isinstance(raw, dict):
+            raise SchemaError("raw は辞書で指定してください")
+        source, native_ref = raw.get("source"), raw.get("native_ref")
+        received_at = raw.get("received_at")
+        if not all(isinstance(x, str) and x for x in (source, native_ref, received_at)):
+            raise SchemaError("source、native_ref、received_at が必要です")
+        input_id = self._digest(f"{source}|{native_ref}")[:24]
+        with self.tx():
+            if self.conn.execute("SELECT 1 FROM raw_inputs WHERE input_id=?", (input_id,)).fetchone():
+                return input_id, False
+            days = self.get_setting("retention_days", 90)
+            try:
+                received = datetime.fromisoformat(received_at.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise SchemaError("received_at はISO 8601で指定してください") from exc
+            retention_until = (received + timedelta(days=int(days))).isoformat()
+            values = {
+                "input_id": input_id, "source": source, "native_ref": native_ref,
+                "received_at": received_at, "body_text": raw.get("body_text", ""),
+                "body_masked": raw.get("body_masked", ""), "summary_masked": raw.get("summary_masked", ""),
+                "media_ref": raw.get("media_ref"), "sender_role": raw.get("sender_role", "不明"),
+                "recv_state": raw.get("recv_state", "受け取り済み"), "read_level": raw.get("read_level"),
+                "retention_until": raw.get("retention_until", retention_until),
+            }
+            cols = list(values)
+            self.conn.execute(f"INSERT INTO raw_inputs({','.join(cols)}) VALUES({','.join('?' for _ in cols)})", [values[k] for k in cols])
+            self._record_history("input:"+input_id, {"raw_input": {"before": None, "after": {"input_id": input_id, "source": source, "recv_state": values['recv_state']}}}, "入力を受け取り", now or received_at)
+        return input_id, True
+
+    def record_reading(self, input_id, items, read_level, now=None):
+        if not isinstance(items, list):
+            raise SchemaError("items はリストで指定してください")
+        row = self.conn.execute("SELECT * FROM raw_inputs WHERE input_id=?", (input_id,)).fetchone()
+        if row is None:
+            raise KeyError(input_id)
+        if not items:
+            return []
+        at = _now(now)
+        made = []
+        with self.tx():
+            for index, item in enumerate(items):
+                if not isinstance(item, dict) or not isinstance(item.get("kind"), str) or not isinstance(item.get("title"), str):
+                    raise SchemaError("item には kind と title が必要です")
+                case_id = self._digest(f"{input_id}|{index}")[:24]
+                patch = {k: item.get(k) for k in ("kind", "title", "summary", "event_start", "event_end", "due_at", "certainty", "urgency") if item.get(k) is not None}
+                patch.update(case_id=case_id, cause_input_id=input_id, status="未確定", created_at=at, updated_at=at)
+                current = self.get_case(case_id)
+                self.upsert_case(patch, expected_version=current["version"] if current else None, actor="ボット", reason="入力を読み取り", basis=input_id, now=at)
+                for question in item.get("questions", []):
+                    if not isinstance(question, dict) or not question.get("text") or not question.get("fill_method"):
+                        raise SchemaError("questions の各項目には text と fill_method が必要です")
+                    self.add_question(case_id, question["text"], question["fill_method"], now=at)
+                made.append(case_id)
+            self.conn.execute("UPDATE raw_inputs SET recv_state='読み取り済み',read_level=? WHERE input_id=?", (read_level, input_id))
+            self._record_history("input:"+input_id, {"recv_state": {"before": row["recv_state"], "after": "読み取り済み"}, "read_level": {"before": row["read_level"], "after": read_level}}, "入力の読み取り完了", at)
+        return made
+
+    def add_plan(self, case_id, body, valid_until, now=None):
+        if not isinstance(body, dict):
+            raise SchemaError("plan body は辞書で指定してください")
+        plan_id, at = secrets.token_hex(12), _now(now)
+        with self.tx():
+            self.conn.execute("INSERT INTO plans(plan_id,case_id,body,status,valid_until,created_at) VALUES(?,?,?,?,?,?)", (plan_id, case_id, _json(body), "作成中", valid_until, at))
+            self._record_history(case_id, {"plan": {"before": None, "after": {"plan_id": plan_id, "body": body, "status": "作成中", "valid_until": valid_until}}}, "案を作成", at)
+        return plan_id
+
+    def set_plan_status(self, plan_id, status, now=None, actor="本人", reason="案の状態を更新"):
+        allowed = {"作成中": {"提示", "却下", "古い"}, "提示": {"採用", "却下", "古い"}, "採用": {"古い"}, "却下": set(), "古い": set()}
+        if status not in allowed:
+            raise InvalidTransition(f"案状態が不正です: {status}")
+        at = _now(now)
+        with self.tx():
+            row = self.conn.execute("SELECT * FROM plans WHERE plan_id=?", (plan_id,)).fetchone()
+            if row is None:
+                raise KeyError(plan_id)
+            if status != row["status"] and status not in allowed[row["status"]]:
+                raise InvalidTransition(f"{row['status']} から {status} へは移れません")
+            if status != row["status"]:
+                self.conn.execute("UPDATE plans SET status=? WHERE plan_id=?", (status, plan_id))
+                self._record_history(row["case_id"], {"plan_status": {"before": row["status"], "after": status}}, reason, at, actor)
+
+    def reserve_op(self, kind, target_id, case_id, payload_hash, approval_id=None, linked_op_id=None, now=None):
+        if kind not in {"cal_personal", "cal_draft", "reminder", "notion", "send"}:
+            raise SchemaError(f"操作種別が不正です: {kind}")
+        op_id = self._digest(f"{kind}|{target_id}|{case_id}|{payload_hash}")[:24]
+        at = _now(now)
+        with self.tx():
+            row = self.conn.execute("SELECT * FROM operations WHERE op_id=?", (op_id,)).fetchone()
+            if row:
+                return op_id, row["state"]
+            if kind in {"cal_personal", "send"} and not approval_id:
+                raise InvalidTransition("本人の承認が必要です")
+            if approval_id:
+                approval = self.conn.execute("SELECT * FROM approvals WHERE approval_id=?", (approval_id,)).fetchone()
+                if approval is None or approval["state"] != "有効" or approval["op_kind"] != kind or approval["payload_hash"] != payload_hash:
+                    raise InvalidTransition("承認の種別または内容が一致しません")
+                if datetime.fromisoformat(at.replace("Z", "+00:00")) >= datetime.fromisoformat(approval["expires_at"].replace("Z", "+00:00")):
+                    self.conn.execute("UPDATE approvals SET state='期限切れ' WHERE approval_id=?", (approval_id,))
+                    self._record_history("approval:"+approval_id, {"state": {"before": "有効", "after": "期限切れ"}}, "承認期限切れ", at)
+                    raise InvalidTransition("承認の期限が切れています")
+            self.conn.execute("INSERT INTO operations(op_id,kind,target_id,case_id,payload_hash,approval_id,linked_op_id,state,handoff_state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)", (op_id, kind, target_id, case_id, payload_hash, approval_id, linked_op_id, "予約", "渡し前（未送信）" if kind == "send" else None, at, at))
+            self._record_history(case_id, {"operation": {"before": None, "after": {"op_id": op_id, "kind": kind, "state": "予約"}}}, "操作を予約", at)
+        return op_id, None
+
+    def set_op_state(self, op_id, state, handoff_state=None, result=None, now=None, actor="ボット", reason="操作状態を更新"):
+        transitions = {"予約": {"実行中", "取消"}, "実行中": {"成功（読み戻し済み）", "失敗", "実行結果不明（要照合）"}, "実行結果不明（要照合）": {"成功（読み戻し済み）", "失敗"}, "成功（読み戻し済み）": set(), "失敗": set(), "取消": set()}
+        handoffs = ["渡し前（未送信）", "渡し済み（未確認）", "送信完了", "返事あり"]
+        at = _now(now)
+        with self.tx():
+            row = self.conn.execute("SELECT * FROM operations WHERE op_id=?", (op_id,)).fetchone()
+            if row is None:
+                raise KeyError(op_id)
+            if state != row["state"] and state not in transitions.get(row["state"], set()):
+                raise InvalidTransition(f"{row['state']} から {state} へは移れません")
+            if state == "実行中" and row["kind"] in {"cal_personal", "send"}:
+                approval = self.conn.execute("SELECT * FROM approvals WHERE approval_id=?", (row["approval_id"],)).fetchone() if row["approval_id"] else None
+                if approval is None or approval["state"] != "使用済み" or approval["op_kind"] != row["kind"] or approval["payload_hash"] != row["payload_hash"]:
+                    raise InvalidTransition("実行には内容が一致する使用済みの本人承認が必要です")
+            old_handoff = row["handoff_state"]
+            if handoff_state is not None:
+                if row["kind"] != "send":
+                    raise InvalidTransition("handoff_state は送信操作だけに使えます")
+                if handoff_state not in handoffs or (old_handoff is not None and handoffs.index(handoff_state) not in {handoffs.index(old_handoff), handoffs.index(old_handoff)+1}):
+                    raise InvalidTransition("handoff_state は決まった順にだけ進められます")
+            encoded = _json(result) if result is not None else row["result"]
+            self.conn.execute("UPDATE operations SET state=?,handoff_state=?,result=?,updated_at=? WHERE op_id=?", (state, handoff_state if handoff_state is not None else old_handoff, encoded, at, op_id))
+            change = {"state": {"before": row["state"], "after": state}}
+            if handoff_state is not None and handoff_state != old_handoff:
+                change["handoff_state"] = {"before": old_handoff, "after": handoff_state}
+            if result is not None:
+                change["result"] = {"before": json.loads(row["result"]) if row["result"] else None, "after": result}
+            self._record_history(row["case_id"], change, reason, at, actor)
+
+    def get_op(self, op_id):
+        row = self.conn.execute("SELECT * FROM operations WHERE op_id=?", (op_id,)).fetchone()
+        if not row:
+            return None
+        result = dict(row)
+        result["result"] = json.loads(result["result"]) if result["result"] is not None else None
+        return result
+
+    def list_ops(self, state_in=None):
+        if state_in is None:
+            rows = self.conn.execute("SELECT * FROM operations ORDER BY created_at,op_id").fetchall()
+        else:
+            states = list(state_in)
+            if not states:
+                return []
+            rows = self.conn.execute(f"SELECT * FROM operations WHERE state IN ({','.join('?' for _ in states)}) ORDER BY created_at,op_id", states).fetchall()
+        return [self.get_op(r["op_id"]) for r in rows]
+
+    def grant_approval(self, op_kind, payload_hash, ttl_min, note="", now=None):
+        if op_kind not in {"cal_personal", "cal_draft", "reminder", "notion", "send"} or int(ttl_min) <= 0:
+            raise SchemaError("承認種別または期限が不正です")
+        granted = datetime.fromisoformat(_now(now).replace("Z", "+00:00"))
+        expires = (granted + timedelta(minutes=int(ttl_min))).isoformat()
+        approval_id, at = secrets.token_hex(12), granted.isoformat()
+        with self.tx():
+            self.conn.execute("INSERT INTO approvals(approval_id,op_kind,payload_hash,granted_at,expires_at,state,note) VALUES(?,?,?,?,?,?,?)", (approval_id, op_kind, payload_hash, at, expires, "有効", note))
+            self._record_history("approval:"+approval_id, {"approval": {"before": None, "after": {"op_kind": op_kind, "payload_hash": payload_hash, "expires_at": expires, "state": "有効"}}}, "承認を記録", at, "本人")
+        return approval_id
+
+    def get_approval(self, approval_id):
+        row = self.conn.execute("SELECT * FROM approvals WHERE approval_id=?", (approval_id,)).fetchone()
+        return dict(row) if row else None
+
+    def use_approval(self, approval_id, now=None):
+        at = _now(now)
+        with self.tx():
+            row = self.conn.execute("SELECT * FROM approvals WHERE approval_id=?", (approval_id,)).fetchone()
+            if row is None:
+                raise KeyError(approval_id)
+            if row["state"] != "有効":
+                raise InvalidTransition(f"承認を使えません: {row['state']}")
+            if datetime.fromisoformat(at.replace("Z", "+00:00")) >= datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00")):
+                self.conn.execute("UPDATE approvals SET state='期限切れ' WHERE approval_id=?", (approval_id,))
+                self._record_history("approval:"+approval_id, {"state": {"before": "有効", "after": "期限切れ"}}, "承認期限切れ", at, "ボット")
+                expired = True
+            else:
+                self.conn.execute("UPDATE approvals SET state='使用済み' WHERE approval_id=? AND state='有効'", (approval_id,))
+                self._record_history("approval:"+approval_id, {"state": {"before": "有効", "after": "使用済み"}}, "承認を使用", at, "ボット")
+                expired = False
+        if expired:
+            raise InvalidTransition("承認の期限が切れています")
+
+    def source_seen(self, source_id, ok, at):
+        state = "動いている" if ok else "止まっている"
+        with self.tx():
+            row = self.conn.execute("SELECT status,last_seen_at FROM sources WHERE source_id=?", (source_id,)).fetchone()
+            if row is None:
+                raise KeyError(source_id)
+            self.conn.execute("UPDATE sources SET status=?,last_seen_at=? WHERE source_id=?", (state, at, source_id))
+            self._record_history("source:"+source_id, {"source_status": {"before": row["status"], "after": state}, "last_seen_at": {"before": row["last_seen_at"], "after": at}}, "情報源の確認", at)
+
+    def record_latency(self, req_id, stage, started_at, ended_at, version=None, ai_kind=None, cost_yen=0):
+        if float(cost_yen) < 0:
+            raise SchemaError("cost_yen は0以上です")
+        with self.tx():
+            old = self.conn.execute("SELECT * FROM latency WHERE req_id=? AND stage=?", (req_id, stage)).fetchone()
+            vals = (started_at, ended_at, version, ai_kind, float(cost_yen), req_id, stage)
+            self.conn.execute("INSERT INTO latency(started_at,ended_at,version,ai_kind,cost_yen,req_id,stage) VALUES(?,?,?,?,?,?,?) ON CONFLICT(req_id,stage) DO UPDATE SET started_at=excluded.started_at,ended_at=excluded.ended_at,version=excluded.version,ai_kind=excluded.ai_kind,cost_yen=excluded.cost_yen", vals)
+            before = dict(old) if old else None
+            after = {"req_id": req_id, "stage": stage, "started_at": started_at, "ended_at": ended_at, "version": version, "ai_kind": ai_kind, "cost_yen": float(cost_yen)}
+            self._record_history("latency:"+req_id, {"latency": {"before": before, "after": after}}, "待ち時間を記録", started_at)
