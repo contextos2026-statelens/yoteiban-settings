@@ -59,6 +59,11 @@ def load_catalog(path: str | Path | None = None) -> dict:
     for item in data["questions"]:
         if not isinstance(item, dict) or "id" not in item or "added_in" not in item or "memory_key" not in item:
             raise ValueError("質問の項目に id・added_in・memory_key が必要です")
+        if "aliases" in item and (
+            not isinstance(item["aliases"], list)
+            or any(not isinstance(alias, str) for alias in item["aliases"])
+        ):
+            raise ValueError("aliases は文字列の配列である必要があります")
         parse_version(item["added_in"])
         if item["id"] in seen:
             raise ValueError(f"質問の id が重複しています: {item['id']}")
@@ -137,8 +142,8 @@ def pending_questions(
     linked = set(connected or ())
     pending: list[dict] = []
     for item in questions:
-        key = item["memory_key"]
-        if already_answered(mem, key) or is_tentative(mem.get(key)):
+        keys = [item["memory_key"], *item.get("aliases", [])]
+        if any(already_answered(mem, key) or is_tentative(mem.get(key)) for key in keys):
             continue
         integration = item.get("integration")
         if integration and integration in linked:

@@ -1,5 +1,5 @@
 {
-  "comment": "版ごとの質問一覧。個人の値は置かない。質問の全文は skills/setup/SKILL.md。アップデートのたびに added_in が今の VERSION 以下の全質問と記憶の設定を照らし合わせ、答えがない項目だけを追加で聞く。完了した設定の版より後に added_in がある質問は、先に聞く順番の目安。連携済みと「仮（未回答）」は pending に含めない。",
+  "comment": "版ごとの質問一覧。個人の値は置かない。質問の全文は skills/setup/SKILL.md。アップデートのたびに added_in が今の VERSION 以下の全質問と記憶の設定を照らし合わせ、memory_key または aliases に答えがある項目を除いて追加で聞く。意味が迷う時だけ1回確かめる。完了した設定の版より後に added_in がある質問は、先に聞く順番の目安。連携済みと「仮（未回答）」は pending に含めない。",
   "baseline_version": "1.0.28",
   "releases": [
     {
@@ -26,7 +26,12 @@
       "title": "呼び名",
       "memory_key": "呼び名",
       "in_initial_setup": true,
-      "setup_question": "1"
+      "setup_question": "1",
+      "aliases": [
+        "本人の呼び名",
+        "呼び名（本人）",
+        "私の呼び名"
+      ]
     },
     {
       "id": "calendar",
@@ -34,7 +39,12 @@
       "title": "カレンダー",
       "memory_key": "個人用カレンダーID",
       "in_initial_setup": true,
-      "setup_question": "2"
+      "setup_question": "2",
+      "aliases": [
+        "個人用カレンダー",
+        "書く先のカレンダー",
+        "予定を書き込むカレンダー"
+      ]
     },
     {
       "id": "reminders",
@@ -44,7 +54,12 @@
       "in_initial_setup": true,
       "setup_question": "2の2",
       "integration": "reminders",
-      "unavailable_if_declined": "出発と準備の知らせはチャットだけになる。場所で鳴らす知らせは使えない。"
+      "unavailable_if_declined": "出発と準備の知らせはチャットだけになる。場所で鳴らす知らせは使えない。",
+      "aliases": [
+        "リマインダーのリスト",
+        "専用リマインダーリスト",
+        "通知リスト"
+      ]
     },
     {
       "id": "inboxes",
@@ -52,7 +67,13 @@
       "title": "入口",
       "memory_key": "読む先の一覧",
       "in_initial_setup": true,
-      "setup_question": "3"
+      "setup_question": "3",
+      "aliases": [
+        "入力先",
+        "読む場所",
+        "受信元",
+        "読む先"
+      ]
     },
     {
       "id": "notion_parent",
@@ -62,7 +83,11 @@
       "in_initial_setup": true,
       "setup_question": "4",
       "integration": "notion",
-      "unavailable_if_declined": "表で見返す機能は使えない。承認や確認はチャットのカードで行う。"
+      "unavailable_if_declined": "表で見返す機能は使えない。承認や確認はチャットのカードで行う。",
+      "aliases": [
+        "候補箱の置き場所",
+        "候補のNotionページ"
+      ]
     },
     {
       "id": "family_roster",
@@ -70,7 +95,11 @@
       "title": "家族・近い人",
       "memory_key": "家族ロスター",
       "in_initial_setup": true,
-      "setup_question": "5"
+      "setup_question": "5",
+      "aliases": [
+        "家族一覧",
+        "家族の呼び名一覧"
+      ]
     },
     {
       "id": "self_names",
@@ -78,7 +107,11 @@
       "title": "本人の呼ばれ方",
       "memory_key": "本人の呼ばれ方",
       "in_initial_setup": true,
-      "setup_question": "5の2"
+      "setup_question": "5の2",
+      "aliases": [
+        "自分の呼ばれ方",
+        "予定に書く名前"
+      ]
     },
     {
       "id": "trusted_sources",
@@ -86,7 +119,11 @@
       "title": "見落としたくないもの",
       "memory_key": "信頼する相手",
       "in_initial_setup": true,
-      "setup_question": "6"
+      "setup_question": "6",
+      "aliases": [
+        "信頼する送り手",
+        "強制追加の相手"
+      ]
     },
     {
       "id": "mute_modes",
@@ -94,7 +131,11 @@
       "title": "ミュートとモード",
       "memory_key": "モード",
       "in_initial_setup": true,
-      "setup_question": "7"
+      "setup_question": "7",
+      "aliases": [
+        "仕事とプライベートのモード",
+        "モード設定"
+      ]
     },
     {
       "id": "confirm_send",
@@ -103,7 +144,11 @@
       "memory_key": "確認文の送り方",
       "in_initial_setup": true,
       "setup_question": "8",
-      "default": "B"
+      "default": "B",
+      "aliases": [
+        "送信確認",
+        "相手への確認の送り方"
+      ]
     },
     {
       "id": "candidate_place",
@@ -111,7 +156,11 @@
       "title": "候補の確認場所",
       "memory_key": "候補の確認場所",
       "in_initial_setup": true,
-      "setup_question": "9"
+      "setup_question": "9",
+      "aliases": [
+        "承認場所",
+        "候補を確認する場所"
+      ]
     },
     {
       "id": "times",
@@ -120,7 +169,12 @@
       "memory_key": "確認の間隔",
       "in_initial_setup": true,
       "setup_question": "10",
-      "default": "今の間隔（8時〜22時の2時間おき）"
+      "default": "今の間隔（8時〜22時の2時間おき）",
+      "aliases": [
+        "確認間隔",
+        "見回り間隔",
+        "チェック間隔"
+      ]
     },
     {
       "id": "life_scenes",
@@ -128,7 +182,11 @@
       "title": "暮らしの場面",
       "memory_key": "暮らしの場面",
       "in_initial_setup": true,
-      "setup_question": "11"
+      "setup_question": "11",
+      "aliases": [
+        "暮らしの型",
+        "生活の時間"
+      ]
     },
     {
       "id": "notify_style",
@@ -137,7 +195,11 @@
       "memory_key": "通知の型",
       "in_initial_setup": true,
       "setup_question": "12",
-      "default": "3"
+      "default": "3",
+      "aliases": [
+        "通知方法",
+        "通知のしかた"
+      ]
     },
     {
       "id": "night_notify",
@@ -146,7 +208,11 @@
       "memory_key": "夜の通知",
       "in_initial_setup": true,
       "setup_question": "13",
-      "default": "急ぎだけ夜に知らせる（見に行かない）"
+      "default": "急ぎだけ夜に知らせる（見に行かない）",
+      "aliases": [
+        "夜間通知",
+        "夜の知らせ"
+      ]
     },
     {
       "id": "tentative",
@@ -155,7 +221,11 @@
       "memory_key": "仮の使用",
       "in_initial_setup": true,
       "setup_question": "14",
-      "default": "使う"
+      "default": "使う",
+      "aliases": [
+        "仮の予定",
+        "仮予定の使い方"
+      ]
     },
     {
       "id": "location_use",
@@ -166,7 +236,12 @@
       "setup_question": "15の2",
       "integration": "location",
       "default": "使わない",
-      "unavailable_if_declined": "いまいる場所で『どこで』を省く判断はしない。"
+      "unavailable_if_declined": "いまいる場所で『どこで』を省く判断はしない。",
+      "aliases": [
+        "現在地",
+        "現在地の利用",
+        "位置情報の使用"
+      ]
     },
     {
       "id": "household_classify",
@@ -175,7 +250,12 @@
       "memory_key": "家用の見分けの表",
       "in_initial_setup": true,
       "setup_question": "16",
-      "said_rule": true
+      "said_rule": true,
+      "aliases": [
+        "家用の見分け方",
+        "家族予定の見分け方",
+        "ファミリー予定の本人判定"
+      ]
     },
     {
       "id": "delegation_adjust",
@@ -184,7 +264,11 @@
       "memory_key": "他の人との予定調整機能",
       "in_initial_setup": true,
       "setup_question": "18",
-      "default": "使わない"
+      "default": "使わない",
+      "aliases": [
+        "他の人との予定調整",
+        "予定調整機能"
+      ]
     },
     {
       "id": "body_routines",
@@ -194,7 +278,11 @@
       "in_initial_setup": true,
       "setup_question": "19",
       "default": "入れない",
-      "unavailable_if_declined": "薬・食事・風呂の枠は、カレンダーにも先読みの候補にも入れない。"
+      "unavailable_if_declined": "薬・食事・風呂の枠は、カレンダーにも先読みの候補にも入れない。",
+      "aliases": [
+        "薬・食事・風呂の予定",
+        "生活に入れる体の用事"
+      ]
     },
     {
       "id": "usage_cap",
@@ -203,7 +291,12 @@
       "memory_key": "使う量の上限",
       "in_initial_setup": true,
       "setup_question": "20",
-      "default": "正本の既定"
+      "default": "正本の既定",
+      "aliases": [
+        "使う量",
+        "使用量上限",
+        "利用上限"
+      ]
     },
     {
       "id": "heartbeat",
@@ -214,7 +307,12 @@
       "setup_question": "21",
       "integration": "heartbeat",
       "default": "使わない",
-      "unavailable_if_declined": "家の機械が止まったことの自動の知らせは無い。朝のまとめで「昨夜の台帳が無い」と気づく形にできる。"
+      "unavailable_if_declined": "家の機械が止まったことの自動の知らせは無い。朝のまとめで「昨夜の台帳が無い」と気づく形にできる。",
+      "aliases": [
+        "心拍通知",
+        "心拍の通知",
+        "心拍連携"
+      ]
     },
     {
       "id": "phone_permissions",
@@ -224,7 +322,11 @@
       "in_initial_setup": true,
       "setup_question": "22",
       "default": "今はしない",
-      "unavailable_if_declined": "スマホに知らせが出ないことがある。このチャットを開いたときだけ見える。場所で鳴らす知らせも使えない。"
+      "unavailable_if_declined": "スマホに知らせが出ないことがある。このチャットを開いたときだけ見える。場所で鳴らす知らせも使えない。",
+      "aliases": [
+        "スマホの通知許可",
+        "リマインダー許可"
+      ]
     },
     {
       "id": "family_role",
@@ -234,7 +336,11 @@
       "in_initial_setup": true,
       "setup_question": "23",
       "default": "本人",
-      "unavailable_if_declined": "家族向けの知らせを自動では出さない。分からなければ朝のまとめで1回聞く。"
+      "unavailable_if_declined": "家族向けの知らせを自動では出さない。分からなければ朝のまとめで1回聞く。",
+      "aliases": [
+        "連絡担当",
+        "病院・学校の連絡担当"
+      ]
     }
   ]
 }
