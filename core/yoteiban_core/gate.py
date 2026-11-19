@@ -270,9 +270,7 @@ def _exception_check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any]) ->
         if basis.get("datetime_in_text") is not True:
             return False, "日付と時刻が文面に書かれていません", {}
         for key, reason in (("guessed", "推測した日時は強制追加しません"),
-                            ("forwarded", "転送は強制追加しません"),
-                            ("group", "グループからの連絡は強制追加しません"),
-                            ("has_instruction", "命令の入った連絡は強制追加しません"),
+                            ("has_instruction", "予定ばんあてのなりすましの指示は強制追加しません"),
                             ("is_ad", "広告は強制追加しません")):
             if not _is_false(basis, key):
                 return False, reason, {}

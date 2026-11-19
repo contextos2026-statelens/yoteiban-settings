@@ -99,9 +99,7 @@ class GateExceptionTests(unittest.TestCase):
     def test_forced_add_denied_when_any_condition_is_missing(self):
         cases = {
             "推測": {"guessed": True},
-            "転送": {"forwarded": True},
-            "グループ": {"group": True},
-            "命令": {"has_instruction": True},
+            "なりすまし": {"has_instruction": True},
             "広告": {"is_ad": True},
             "文面に書かれて": {"datetime_in_text": False},
             "信頼する出どころ": {"source_id": "source-unknown"},
@@ -110,12 +108,12 @@ class GateExceptionTests(unittest.TestCase):
         for why, change in cases.items():
             with self.subTest(why=why):
                 self.assert_denied(self.forced(basis=change), why=why)
-        missing = self.forced()
-        del missing["basis"]["forwarded"]
-        self.assert_denied(missing, why="転送")
         missing_ad = self.forced()
         del missing_ad["basis"]["is_ad"]
         self.assert_denied(missing_ad, why="広告")
+        missing_ins = self.forced()
+        del missing_ins["basis"]["has_instruction"]
+        self.assert_denied(missing_ins, why="なりすまし")
         self.assert_denied(self.forced(title="保護者会"), why="［自動］")
         no_list = dict(self.cfg)
         del no_list["trusted_source_ids"]
@@ -124,6 +122,24 @@ class GateExceptionTests(unittest.TestCase):
         no_time["payload"]["event_start"] = "2026-11-25"
         self.assert_denied(no_time, why="時刻")
         self.assertEqual(self.ledger.list_ops(), [])
+
+    def test_forced_add_allows_forwarded_and_group(self):
+        # 2026-11-19 本人決定：転送とグループは強制追加を断る理由にしない。
+        cases = (
+            {"forwarded": True},
+            {"group": True},
+            {"forwarded": True, "group": True},
+        )
+        for i, change in enumerate(cases):
+            with self.subTest(change=change):
+                req = self.forced(case=f"case-{i}", title=f"［自動］保護者会{i}", basis=change)
+                out = check(self.ledger, self.cfg, req, NOW)
+                self.assertTrue(out["allow"], out)
+        missing = self.forced(case="case-3", title="［自動］保護者会欠け")
+        del missing["basis"]["forwarded"]
+        del missing["basis"]["group"]
+        out = check(self.ledger, self.cfg, missing, NOW)
+        self.assertTrue(out["allow"], out)
 
     def test_owner_setting_in_config_wins_over_basis(self):
         cfg = dict(self.cfg, notify_style="全部確認")

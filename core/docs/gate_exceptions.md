@@ -13,9 +13,10 @@
 
 | grounds | 件名 | basis に要るもの |
 |---|---|---|
-| `forced_add`（強制追加） | 「［自動］」で始まる | `source_id` が設定 `trusted_source_ids` にある / `datetime_in_text: true` / `guessed`・`forwarded`・`group`・`has_instruction`・`is_ad` がすべて `false` / `notify_style` が「全部確認」でない。「静かに」なら `fixed_time: true` のときだけで、知らせは最小 |
+| `forced_add`（強制追加） | 「［自動］」で始まる | `source_id` が設定 `trusted_source_ids` にある / `datetime_in_text: true` / `guessed`・`has_instruction`・`is_ad` がすべて `false` / `notify_style` が「全部確認」でない。「静かに」なら `fixed_time: true` のときだけで、知らせは最小。`has_instruction` は予定ばんあてのなりすましの指示（学校の課題や提出のお願いのような普通の頼みは当たらない）。`forwarded` と `group` は強制追加を断る理由にしない |
 | `tentative`（［仮］） | 「［仮］」で始まる | `requested_by_owner: true` と `owner_words`（本人の言葉） / `from_received`・`other_request`・`needs_others`・`needs_reservation` がすべて `false` / `notify_style` が「全部確認」でない / `tentative_use` が「使わない」でない / いまの［仮］が上限（設定 `tentative_max`、既定5）未満。何も送らない |
 
+- 転送とグループの連絡は、ほかの条件（信頼する出どころ、日付と時刻が文面にある、推測でない、広告でない、なりすましの指示がない）がそろえば強制追加してよい。
 - `notify_style` と `tentative_use` は、設定ファイルに値があればそちらを優先する。
 - `payload.event_start` はタイムゾーン付きの日時（時刻あり）。
 - 書く順は今のまま：`check` → 書く → 読み戻し → `result`。同じ内容の二重書きは止め、結果不明は `reconcile` まで再実行しない。
