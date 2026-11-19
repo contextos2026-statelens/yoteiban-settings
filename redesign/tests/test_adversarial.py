@@ -97,9 +97,12 @@ class Round1(unittest.TestCase):
         self.assertTrue(any(f["kind"] == "家用だけ" for f in r["morning"] + r["record_only"]))
         r = review([Case("c", "歯医者の予約を取る", "予定あり", missing=["時刻"])], [], P("2026-11-17 22:00 JST"), goals=[])
         self.assertEqual(len(r["morning"] + r["record_only"]), 1)
-        far = E("f1", "遠足", "2026-12-10 09:00 JST", "2026-12-10 15:00 JST", location="公園")
-        r = review([], [far], P("2026-11-17 22:00 JST"), goals=[])
+        near = E("f1", "遠足", "2026-12-01 09:00 JST", "2026-12-01 15:00 JST", location="公園")
+        r = review([], [near], P("2026-11-17 22:00 JST"), goals=[])
         self.assertEqual(len(r["morning"] + r["record_only"]), 1)
+        far = E("f2", "遠足", "2026-12-10 09:00 JST", "2026-12-10 15:00 JST", location="公園")
+        r = review([], [far], P("2026-11-17 22:00 JST"), goals=[])
+        self.assertEqual(len(r["morning"] + r["record_only"]), 0)
 
     def test_20_unregistered_body_safety_night(self):
         d = U({"title": "知らない番号から：体調が", "time": "2026-11-19 10:00 JST", "body_safety": True, "registered_source": False, "time_in_text": False},
