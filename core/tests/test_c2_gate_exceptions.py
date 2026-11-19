@@ -34,7 +34,7 @@ class GateExceptionTests(unittest.TestCase):
         value = {"kind": "cal_personal", "target_id": target, "case_id": case, "grounds": "forced_add",
                  "payload": {"title": title, "event_start": "2026-11-25T14:00:00+09:00"},
                  "basis": {"source_id": "source-school", "datetime_in_text": True, "guessed": False,
-                           "forwarded": False, "group": False, "has_instruction": False,
+                           "forwarded": False, "group": False, "has_instruction": False, "is_ad": False,
                            "notify_style": "標準", **(basis or {})}}
         value.update(extra)
         return value
@@ -102,6 +102,7 @@ class GateExceptionTests(unittest.TestCase):
             "転送": {"forwarded": True},
             "グループ": {"group": True},
             "命令": {"has_instruction": True},
+            "広告": {"is_ad": True},
             "文面に書かれて": {"datetime_in_text": False},
             "信頼する出どころ": {"source_id": "source-unknown"},
             "全部確認": {"notify_style": "全部確認"},
@@ -112,6 +113,9 @@ class GateExceptionTests(unittest.TestCase):
         missing = self.forced()
         del missing["basis"]["forwarded"]
         self.assert_denied(missing, why="転送")
+        missing_ad = self.forced()
+        del missing_ad["basis"]["is_ad"]
+        self.assert_denied(missing_ad, why="広告")
         self.assert_denied(self.forced(title="保護者会"), why="［自動］")
         no_list = dict(self.cfg)
         del no_list["trusted_source_ids"]

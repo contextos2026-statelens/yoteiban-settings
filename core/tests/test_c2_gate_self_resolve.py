@@ -135,7 +135,7 @@ class GateSelfResolveTests(unittest.TestCase):
         op = {"kind": "cal_personal", "target_id": "calendar-personal", "case_id": "case-3", "grounds": "forced_add",
               "payload": {"title": "［自動］保護者会", "event_start": "2026-11-25T14:00:00+09:00"},
               "basis": {"source_id": "source-school", "datetime_in_text": True, "guessed": False, "forwarded": False,
-                        "group": False, "has_instruction": False, "notify_style": "標準"}}
+                        "group": False, "has_instruction": False, "is_ad": False, "notify_style": "標準"}}
         out = check(self.ledger, self.cfg, op, T1)
         self.assertTrue(out["allow"], out)
         result(self.ledger, out["op_id"], "ok", True, T1, event_id="ev-8")
