@@ -17,7 +17,7 @@ class NightlyTest(unittest.TestCase):
     def test_findings_and_cap(self):
         evs = [ev("a", "2026-11-22 10:00 JST", "2026-11-22 13:00 JST", calendar="household"),
                ev("b", "2026-11-22 10:30 JST", "2026-11-22 11:20 JST"),
-               ev("m", "2026-11-28 17:40 JST", "2026-11-28 18:50 JST", kind="move", meta={"direction": "return"}),
+               ev("m", "2026-11-26 17:40 JST", "2026-11-26 18:50 JST", kind="move", meta={"direction": "return"}),
                ev("bd", "2026-12-05 00:00 JST", "2026-12-06 00:00 JST", title="祖父の誕生日", all_day=True, owner="all")]
         cases = [Case("c1", "面接指導の時刻", "確認待ち", due=T("2026-11-23 09:00 JST"), missing=["時刻"], heavy=True),
                  Case("c2", "提出の締切", "締切", due=T("2026-12-03 17:00 JST"), heavy=True),

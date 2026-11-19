@@ -31,8 +31,8 @@ class MissKeyTest(unittest.TestCase):
         # 同じ件名の通院が2回（内容は回ごとに違う）。どちらも移動の案が出る形
         return [ev("v1", "2026-11-24 10:00 JST", "2026-11-24 11:00 JST", title="通院"),
                 ev("m1", "2026-11-24 09:00 JST", "2026-11-24 10:10 JST", kind="move", title="通院への移動"),
-                ev("v2", "2026-12-01 10:00 JST", "2026-12-01 11:00 JST", title="通院"),
-                ev("m2", "2026-12-01 09:00 JST", "2026-12-01 10:10 JST", kind="move", title="通院への移動")]
+                ev("v2", "2026-11-27 10:00 JST", "2026-11-27 11:00 JST", title="通院"),
+                ev("m2", "2026-11-27 09:00 JST", "2026-11-27 10:10 JST", kind="move", title="通院への移動")]
 
     def test_miss_on_one_visit_does_not_suppress_other_visit(self):
         evs = self._move_days()
@@ -42,7 +42,7 @@ class MissKeyTest(unittest.TestCase):
         for f in found:
             by_when.setdefault(f["when"], []).append(f)
         self.assertIn("2026-11-24", by_when, found)
-        self.assertIn("2026-12-01", by_when, found)
+        self.assertIn("2026-11-27", by_when, found)
         miss = by_when["2026-11-24"][0]
         fb = {miss["key"]: {"verdict": "外れ", "at": "2026-11-20T22:30:00+09:00"}}
         second = review([], evs, T("2026-11-21 22:00 JST"), goals=[], feedback=fb)
@@ -51,7 +51,7 @@ class MissKeyTest(unittest.TestCase):
         self.assertEqual(suppressed, {miss["key"]})
         self.assertTrue(any(k for k in alive if k != miss["key"]))
         for f in second["morning"] + second["record_only"]:
-            if f["when"] == "2026-12-01":
+            if f["when"] == "2026-11-27":
                 break
         else:
             self.fail("別の日の通院の案まで止まっている")

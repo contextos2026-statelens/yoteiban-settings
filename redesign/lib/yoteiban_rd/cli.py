@@ -12,7 +12,7 @@ from datetime import date
 from .calc import (CalcError, Event, find_conflicts, free_slots, fmt_md, parse_time, travel_check, fmt, conflict_kind, check_weekdays,
                    weekday_ja, find_duplicates)
 from .urgency import Context, Item, decide
-from .nightly import Case, review, record_feedback, load_feedback, hit_rate
+from .nightly import Case, review, record_feedback, load_feedback, hit_rate, HORIZON_DAYS
 from .morning import Source, build_morning, coverage
 from .quick import diff as quick_diff, snapshot as quick_snapshot
 from .latency import judge as latency_judge
@@ -116,7 +116,7 @@ def cmd_nightly(data: dict) -> dict:
     if isinstance(fb, str):
         fb = load_feedback(fb)
     return review(cases, [_ev(e) for e in data.get("events", [])], parse_time(data["now"]),
-                  data.get("goals", []), data.get("horizon_days", 14), data.get("daily_load_limit_min"),
+                  data.get("goals", []), data.get("horizon_days", HORIZON_DAYS), data.get("daily_load_limit_min"),
                   data.get("previous"), fb, data.get("coverage"))
 
 

@@ -1,4 +1,4 @@
-"""2週間の予定を調べ、衝突や準備不足の手がかりを返す。"""
+"""先1週間の予定を調べ、衝突や準備不足の手がかりを返す。ずらし先探し（7→14→21日）は計算係 nightly。"""
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
@@ -69,7 +69,7 @@ def _day_window(day: date) -> tuple[datetime, datetime]:
     return start, start + timedelta(days=1)
 
 
-def run(events, cases, today, settings, weather=None, travel_min=None, days=14) -> list[dict]:
+def run(events, cases, today, settings, weather=None, travel_min=None, days=7) -> list[dict]:
     """todayを含むdays日間を調べる。入力は読み取り専用で、日付はJSTで扱う。"""
     first = _date(today)
     if first is None:
@@ -200,7 +200,7 @@ def run(events, cases, today, settings, weather=None, travel_min=None, days=14) 
 
 
 def rerun(changed_dates, events, cases, today, settings, weather=None, travel_min=None,
-          days=14, existing=None) -> list[dict]:
+          days=7, existing=None) -> list[dict]:
     """変更日と前後1日だけ再計算し、既存の他日付のFindingを保つ。"""
     first = _date(today)
     if first is None:
