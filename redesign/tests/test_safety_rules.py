@@ -165,15 +165,15 @@ class SkillCoverage(unittest.TestCase):
                        "当日の出発前の確認", "coverage.all_ok が false"],
             "write": ["【説明欄の書き方】", "「いつ：日時／どこで：場所", "文例：「11/18(水) 14:00に『テスト塾 面談』を書きました」",
                       "『個人用カレンダーID』", "check-write", "weekday", "所要に2割や×1.2を足して余裕にはしない"],
-            "intake": ["【媒体別の振り分けの手がかり】", "queue.py record", "「〇〇が読めていません（最後に読めたのは△時）」",
+            "intake": ["【媒体別の振り分けの手がかり】", "$YOTEIBAN_TOOLS/queue.py", "「〇〇が読めていません（最後に読めたのは△時）」",
                        "「〇〇は未確認」", "item.end", "item.late_ok", "item.recover_by", "item.night_now"],
             "common": ["現在地は「どこで」を省くかの判定にだけ使い", "読む先の一覧", "終了コードが3", "selfcheck",
                        "「夜は鳴らさない」なら、夜に即時で出すのは家族・近い人の急変（第18章の(c)）だけ", "登録外の名前も伏せる",
                        "【安全の線"],
             "nightly": ["previous", "feedback", "weekly", "suppressed", "当たり外れ", "家用だけ"],
-            "setup": ["R10 毎晩の見直し", "記憶の『読む先の一覧』のカレンダーを全部読み"],
+            "setup": ["R10 毎晩の台帳", "記憶の『読む先の一覧』のカレンダーを全部読み"],
             "chat": ["30秒前後", "1〜3分", "5分以内", "1回の並列", "news", "cli diff", "cli free", "last_check.json", "can_say_no_change",
-                     "full_needed", "読み直しの1手を足さない", "並列で呼んでよい", "推測で埋めない", "latency.jsonl", "本人の名前・件名・本文は書かない", "安全の線は早道でも同じ", "「未確認」"],
+                     "full_needed", "読み戻しは同じ予定を1回取るだけ", "並列で呼んでよい", "推測で埋めない", "latency.jsonl", "本人の名前・件名・本文は書かない", "安全の線は早道でも同じ", "「未確認」"],
             "selftest": ["【X60", "【X64", "【X66", "【X67", "【X68"],
         }
         missing = [(d, s) for d, ss in must.items() for s in ss if s not in self.text(d)]
