@@ -6,7 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from yoteiban_core.backup import BackupError, MAGIC, restore, rotate, snapshot, keygen
 from yoteiban_core.importer import (
-    INPUT_ONLY, from_casebook, from_notion_export, map_certainty, map_mute_state,
+    INPUT_ONLY, count_extra, extra_needs_review, from_casebook,
+    from_notion_exceptions, from_notion_export, from_notion_history,
+    from_notion_sources, infer_urgency, map_certainty, map_mute_state,
     map_status, map_tentative, normalize_inferred_fields, parse_duration_min,
 )
 from yoteiban_core.ledger import Ledger
@@ -106,6 +108,9 @@ class BackupImportTests(unittest.TestCase):
         self.assertEqual(parse_duration_min("1.5時間"), 90)
         self.assertEqual(parse_duration_min("45分"), 45)
         self.assertEqual(parse_duration_min("30"), 30)
+        self.assertEqual(parse_duration_min("30分程度"), 30)
+        self.assertEqual(parse_duration_min("10分（仮）"), 10)
+        self.assertEqual(parse_duration_min("1時間半くらい"), 90)
         self.assertIsNone(parse_duration_min(""))
         with self.assertRaises(ValueError):
             parse_duration_min("長い")
@@ -178,4 +183,160 @@ class BackupImportTests(unittest.TestCase):
             "SELECT c.duration_min, c.status FROM cases c JOIN raw_inputs r ON c.cause_input_id=r.input_id WHERE r.native_ref='odd-dur'"
         ).fetchone()
         self.assertEqual(tuple(row), (None, "未確定"))
+
+
+    def test_empty_native_ref_is_unmapped_without_url_fallback(self):
+        rows = [{"ID": "", "タイトル": "広告", "状態": "予定なし", "url": "https://example.test/row"}]
+        mapping = {"ID": "native_ref", "タイトル": "title", "状態": "status"}
+        result = from_notion_export(self.ledger, rows, mapping, "2026-11-20T10:00:00+09:00")
+        self.assertEqual(result["imported"], 0)
+        self.assertEqual(len(result["unmapped"]), 1)
+        self.assertIn("native_ref", result["unmapped"][0]["reason"])
+        self.assertEqual(self.ledger.conn.execute("SELECT COUNT(*) FROM raw_inputs WHERE source='notion'").fetchone()[0], 0)
+
+    def test_schedule_related_overrides_no_schedule(self):
+        rows = [
+            {"ID": "rel-yes", "タイトル": "関連あり", "状態": "予定なし", "予定関連": "はい"},
+            {"ID": "rel-maybe", "タイトル": "迷い", "状態": "予定なし", "予定関連": "迷い"},
+        ]
+        mapping = {"ID": "native_ref", "タイトル": "title", "状態": "status", "予定関連": "schedule_related"}
+        result = from_notion_export(self.ledger, rows, mapping, "2026-11-20T10:00:00+09:00")
+        self.assertEqual(result["imported"], 2)
+        self.assertEqual(result["unmapped"], [])
+        rows_out = self.ledger.conn.execute(
+            "SELECT r.native_ref, c.status FROM cases c JOIN raw_inputs r ON c.cause_input_id=r.input_id ORDER BY r.native_ref"
+        ).fetchall()
+        self.assertEqual([tuple(r) for r in rows_out], [("rel-maybe", "未確定"), ("rel-yes", "未確定")])
+
+    def test_unknown_column_goes_to_extra_and_does_not_stop(self):
+        rows = [{"ID": "x1", "タイトル": "説明会", "状態": "予定あり", "謎の列": "控え", "別の未知": "メモ", "作成日": "2026-11-19T10:00:00+09:00", "date:日時:is_datetime": 1}]
+        mapping = {"ID": "native_ref", "タイトル": "title", "状態": "status"}
+        result = from_notion_export(self.ledger, rows, mapping, "2026-11-20T10:00:00+09:00")
+        self.assertEqual(result["imported"], 1)
+        self.assertEqual(result["unmapped"], [])
+        extra = json.loads(self.ledger.conn.execute(
+            "SELECT c.extra FROM cases c JOIN raw_inputs r ON c.cause_input_id=r.input_id WHERE r.native_ref='x1'"
+        ).fetchone()[0])
+        self.assertEqual(extra, {"謎の列": "控え", "別の未知": "メモ"})
+        self.assertEqual(count_extra(self.ledger)["cases"], 1)
+        self.assertEqual(count_extra(self.ledger)["fields"], 2)
+
+    def test_routed_columns_and_retention(self):
+        rows = [{
+            "ID": "route-1", "タイトル": "面談", "状態": "登録済み",
+            "確認する項目": "場所を聞く", "カレンダー登録": "済",
+            "登録先のイベント参照": "evt-1", "14日後の消去対象か": "__YES__",
+            "date:受信日時:start": "2026-11-16T17:00:00+09:00",
+        }]
+        mapping = {
+            "ID": "native_ref", "タイトル": "title", "状態": "status",
+            "date:受信日時:start": "received_at",
+        }
+        now = "2026-11-20T10:00:00+09:00"
+        result = from_notion_export(self.ledger, rows, mapping, now)
+        self.assertEqual(result["imported"], 1)
+        q = self.ledger.conn.execute("SELECT text, fill_method FROM questions").fetchall()
+        self.assertEqual([tuple(r) for r in q], [("場所を聞く", "本人に聞く")])
+        op = self.ledger.conn.execute("SELECT kind, target_id, state FROM operations").fetchone()
+        self.assertEqual(tuple(op), ("cal_personal", "evt-1", "成功（読み戻し済み）"))
+        until = self.ledger.conn.execute("SELECT retention_until FROM raw_inputs WHERE native_ref='route-1'").fetchone()[0]
+        self.assertTrue(until.startswith("2026-11-30"))
+
+    def test_urgency_from_whole_row_before_extra_and_review_question(self):
+        self.assertEqual(infer_urgency({"タイトル": "通常", "メモ": "買い物"}), "朝でよい")
+        self.assertEqual(infer_urgency({"タイトル": "緊急の件"}), "すぐ")
+        self.assertEqual(infer_urgency({"備考": "今日中に返信"}), "今日中")
+        self.assertEqual(extra_needs_review({"メモ": "特になし"}), [])
+        self.assertEqual(extra_needs_review({"メモ": "病院へ"}), ["メモ"])
+        self.assertEqual(extra_needs_review({"日程": "3月1日"}), ["日程"])
+        rows = [{
+            "ID": "urg-1", "タイトル": "通常の件", "状態": "予定あり",
+            "隠しメモ": "緊急で病院",
+        }]
+        mapping = {"ID": "native_ref", "タイトル": "title", "状態": "status"}
+        result = from_notion_export(self.ledger, rows, mapping, "2026-11-20T10:00:00+09:00")
+        self.assertEqual(result["imported"], 1)
+        case = self.ledger.conn.execute(
+            "SELECT c.urgency, c.extra FROM cases c JOIN raw_inputs r ON c.cause_input_id=r.input_id WHERE r.native_ref='urg-1'"
+        ).fetchone()
+        self.assertEqual(case[0], "すぐ")
+        extra = json.loads(case[1])
+        self.assertEqual(extra, {"隠しメモ": "緊急で病院"})
+        self.assertNotIn("urgency", extra)
+        q = self.ledger.conn.execute("SELECT text FROM questions").fetchone()[0]
+        self.assertIn("確かめる", q)
+        self.assertIn("隠しメモ", q)
+        self.assertGreaterEqual(count_extra(self.ledger)["review"], 1)
+
+    def test_input_only_urgent_extra_gets_outlook_mark(self):
+        rows = [{
+            "ID": "only-1", "タイトル": "お知らせ", "状態": "予定なし", "予定関連": "いいえ",
+            "備考": "今日中",
+        }]
+        mapping = {"ID": "native_ref", "タイトル": "title", "状態": "status", "予定関連": "schedule_related"}
+        result = from_notion_export(self.ledger, rows, mapping, "2026-11-20T10:00:00+09:00")
+        self.assertEqual(result["imported"], 1)
+        self.assertIsNone(self.ledger.conn.execute(
+            "SELECT c.case_id FROM cases c JOIN raw_inputs r ON c.cause_input_id=r.input_id WHERE r.native_ref='only-1'"
+        ).fetchone())
+        extra = json.loads(self.ledger.conn.execute(
+            "SELECT extra FROM raw_inputs WHERE native_ref='only-1'"
+        ).fetchone()[0])
+        self.assertEqual(extra.get("備考"), "今日中")
+        finding = self.ledger.conn.execute(
+            "SELECT type, text FROM outlook_findings WHERE type='extra_review'"
+        ).fetchone()
+        self.assertEqual(tuple(finding), ("extra_review", "その他の箱を確かめる"))
+
+    def test_history_and_exceptions_and_sources(self):
+        hist = [
+            {"内容": "提案の記録", "種類": "提案", "結果": "出した", "url": "hist-1", "date:時間:start": "2026-11-17T08:00:00+09:00"},
+            {"内容": "種類なし", "種類": "", "結果": "残す", "url": "hist-2", "date:時間:start": "2026-11-17T09:00:00+09:00"},
+        ]
+        now = "2026-11-20T10:00:00+09:00"
+        dry = from_notion_history(self.ledger, hist, now, dry_run=True)
+        self.assertEqual(dry["imported"], 2)
+        self.assertEqual(self.ledger.conn.execute("SELECT COUNT(*) FROM history WHERE actor='移行'").fetchone()[0], 0)
+        result = from_notion_history(self.ledger, hist, now)
+        self.assertEqual(result["imported"], 2)
+        self.assertEqual(result["empty_kind"], 1)
+        second = from_notion_history(self.ledger, hist, now)
+        self.assertEqual(second["skipped"], 2)
+        kinds = sorted(json.loads(r[0])["kind"] for r in self.ledger.conn.execute(
+            "SELECT change FROM history WHERE actor='移行'"
+        ))
+        self.assertEqual(kinds, ["その他", "提案"])
+        unlinked = self.ledger.conn.execute(
+            "SELECT COUNT(*) FROM history WHERE actor='移行' AND case_id LIKE 'history:unlinked:%'"
+        ).fetchone()[0]
+        self.assertEqual(unlinked, 2)
+
+        exceptions = [{"入力の特徴": "学校の案内", "正しい扱い": "本人の予定として数える"}]
+        ex = from_notion_exceptions(self.ledger, exceptions, now)
+        self.assertEqual(ex["imported"], 1)
+        pref = self.ledger.conn.execute("SELECT topic,state FROM twin_prefs WHERE topic LIKE 'exception:%'").fetchone()
+        self.assertIsNotNone(pref)
+        self.assertEqual(pref[1], "確定")
+        self.assertEqual(from_notion_exceptions(self.ledger, exceptions, now)["skipped"], 1)
+
+        sources = [
+            {"出どころ名": "郵便テスト", "種類": "メール", "状態": "有効", "カーソル": "2026-11-19T08:55:00+09:00（印 12）", "信頼度": "不明"},
+            {"出どころ名": "未知の源", "種類": "手動", "状態": "有効"},
+        ]
+        source_map = {
+            "郵便テスト": {"source_id": "mail-test", "kind": "email", "reader": "mail-reader", "read_only": True},
+        }
+        src = from_notion_sources(self.ledger, sources, source_map, now)
+        self.assertEqual(src["imported"], 1)
+        self.assertEqual(len(src["unmapped"]), 1)
+        row = self.ledger.conn.execute(
+            "SELECT source_id,kind,reader,read_only,status,last_seen_at FROM sources WHERE source_id='mail-test'"
+        ).fetchone()
+        self.assertEqual(row[0], "mail-test")
+        self.assertEqual(row[1], "email")
+        self.assertEqual(row[2], "mail-reader")
+        self.assertEqual(row[3], 1)
+        self.assertEqual(row[4], "動いている")
+        self.assertTrue(row[5].startswith("2026-11-19T08:55:00"))
+
 if __name__=='__main__': unittest.main()

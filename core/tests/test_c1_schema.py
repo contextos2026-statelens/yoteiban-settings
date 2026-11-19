@@ -14,7 +14,7 @@ class SchemaTests(unittest.TestCase):
     def tearDown(self): self.conn.close(); self.tmp.cleanup()
     def test_migrate_twice(self):
         migrate(self.conn); migrate(self.conn)
-        self.assertEqual(self.conn.execute('select count(*) from schema_version').fetchone()[0], 2)
+        self.assertEqual(self.conn.execute('select count(*) from schema_version').fetchone()[0], 3)
     def test_reject_unknown_status(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.conn.execute("insert into cases(case_id,kind,title,status,created_at,updated_at) values('c','予定','予定','unknown','now','now')")
@@ -44,15 +44,17 @@ class SchemaTests(unittest.TestCase):
             self.assertNotIn("location", names)
             migrate(conn)
             versions = [row[0] for row in conn.execute("SELECT version FROM schema_version ORDER BY version")]
-            self.assertEqual(versions, [1, 2])
+            self.assertEqual(versions, [1, 2, 3])
             cases = {row[1]: row[2] for row in conn.execute("PRAGMA table_info(cases)")}
             inputs = {row[1]: row[2] for row in conn.execute("PRAGMA table_info(raw_inputs)")}
             for col in ("location", "duration_min", "counterpart", "inferred_fields", "tentative", "reply_by"):
                 self.assertIn(col, cases)
             for col in ("addressed_to", "is_direct", "named", "schedule_related", "mute_state"):
                 self.assertIn(col, inputs)
-            row = conn.execute("SELECT location, duration_min, counterpart, inferred_fields, tentative, reply_by FROM cases WHERE case_id='c1'").fetchone()
-            self.assertEqual(tuple(row), (None, None, None, "[]", 0, None))
+            row = conn.execute("SELECT location, duration_min, counterpart, inferred_fields, tentative, reply_by, extra FROM cases WHERE case_id='c1'").fetchone()
+            self.assertEqual(tuple(row), (None, None, None, "[]", 0, None, "{}"))
+            self.assertIn("extra", {r[1] for r in conn.execute("PRAGMA table_info(cases)")})
+            self.assertIn("extra", {r[1] for r in conn.execute("PRAGMA table_info(raw_inputs)")})
             self.assertEqual(conn.execute("SELECT count(*) FROM urgency_corrections").fetchone()[0], 0)
             conn.close()
         finally:
@@ -75,6 +77,10 @@ class SchemaTests(unittest.TestCase):
             self.conn.execute("UPDATE raw_inputs SET schedule_related='不明' WHERE input_id='i'")
         with self.assertRaises(sqlite3.IntegrityError):
             self.conn.execute("UPDATE raw_inputs SET mute_state='自動印のみ' WHERE input_id='i'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute("UPDATE cases SET extra='not-json' WHERE case_id='ok'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.conn.execute("UPDATE raw_inputs SET extra='not-json' WHERE input_id='i'")
 
     def test_urgency_corrections_checks(self):
         self.conn.execute(
