@@ -13,7 +13,7 @@
 
 | grounds | 件名 | basis に要るもの |
 |---|---|---|
-| `forced_add`（強制追加） | 「［自動］」で始まる | `source_id` が設定 `trusted_source_ids` にある / `datetime_in_text: true` / `guessed`・`forwarded`・`group`・`has_instruction` がすべて `false` / `notify_style` が「全部確認」でない。「静かに」なら `fixed_time: true` のときだけで、知らせは最小 |
+| `forced_add`（強制追加） | 「［自動］」で始まる | `source_id` が設定 `trusted_source_ids` にある / `datetime_in_text: true` / `guessed`・`forwarded`・`group`・`has_instruction`・`is_ad` がすべて `false` / `notify_style` が「全部確認」でない。「静かに」なら `fixed_time: true` のときだけで、知らせは最小 |
 | `tentative`（［仮］） | 「［仮］」で始まる | `requested_by_owner: true` と `owner_words`（本人の言葉） / `from_received`・`other_request`・`needs_others`・`needs_reservation` がすべて `false` / `notify_style` が「全部確認」でない / `tentative_use` が「使わない」でない / いまの［仮］が上限（設定 `tentative_max`、既定5）未満。何も送らない |
 
 - `notify_style` と `tentative_use` は、設定ファイルに値があればそちらを優先する。
