@@ -21,7 +21,11 @@ from .calc import (JST, Event, find_conflicts, find_duplicates, travel_check, da
                    conflict_kind, free_slots, is_duplicate)
 
 MAX_MORNING = 3
-HORIZON_DAYS = 14  # nightly スキルの「先2週間」とそろえる。重い締切の手順分けとお祝いは HEAVY_DAYS / OCCASION_DAYS
+HORIZON_DAYS = 7  # nightly スキルの「先1週間」とそろえる。ずらし先探しは SHIFT_SEARCH_STEPS。重い締切の手順分けとお祝いは HEAVY_DAYS / OCCASION_DAYS
+SHIFT_SEARCH_STEPS = (7, 14, 21)  # ずらし先：1週間、無ければ2週間、3週間
+SHIFT_DAY_START_HOUR = 9
+SHIFT_DAY_END_HOUR = 21
+SHIFT_MAX_SLOTS = 3
 HEAVY_DAYS = 35
 OCCASION_DAYS = 21
 INFO_EARLY_DAYS = 14  # 欠けた情報は、期限の14日前（重いものは21日前）から朝に出す。それより先は記録だけ
@@ -75,6 +79,91 @@ def _key(f: Finding) -> str:
     if f.refs:
         return f.kind + "|" + ",".join(sorted(f.refs))
     return f.kind + "|" + (f.when or "日付なし") + "|" + f.title
+
+
+
+
+def find_shift_slots(target: Event, events: list[Event], now: datetime,
+                     steps: tuple[int, ...] = SHIFT_SEARCH_STEPS,
+                     max_slots: int = SHIFT_MAX_SLOTS) -> dict:
+    """その日でなくてよい予定のずらし先。1週間、無ければ2週間、3週間と広げる。
+
+    家用・ファミリーの予定は動かさない。承認前にカレンダーは触らない（案だけ）。
+    見る範囲の外（8〜21日）は、ずらし先探しのためだけに読む。
+    窓の始まりは now。返り値：window_days（見つかった段の日数、または最後の段）、slots、reason。
+    """
+    if target.calendar in ("household", "family"):
+        return {"window_days": None, "slots": [], "reason": "家用の予定は動かさない"}
+    duration = max(int((target.end - target.start).total_seconds() // 60), 1)
+    others = [e for e in events if e.id != target.id]
+    today = now.astimezone(JST).date()
+    earliest = target.start.astimezone(JST).date()
+    if earliest < today:
+        earliest = today
+    if earliest == today and target.end <= now:
+        earliest = today + timedelta(days=1)
+    origin = today
+    for window in steps:
+        found: list[tuple[datetime, datetime]] = []
+        window_end = now + timedelta(days=window)
+        day = origin
+        while datetime(day.year, day.month, day.day, tzinfo=JST) < window_end:
+            if day >= earliest:
+                day_start = datetime(day.year, day.month, day.day, SHIFT_DAY_START_HOUR, tzinfo=JST)
+                day_end = datetime(day.year, day.month, day.day, SHIFT_DAY_END_HOUR, tzinfo=JST)
+                if day == today:
+                    day_start = max(day_start, now)
+                if day_end > day_start:
+                    for a, b in free_slots(others, day_start, day_end, min_minutes=duration):
+                        if a == target.start or a >= window_end:
+                            continue
+                        end_at = a + timedelta(minutes=duration)
+                        if end_at > b:
+                            continue
+                        found.append((a, end_at))
+                        if len(found) >= max_slots:
+                            break
+            if len(found) >= max_slots:
+                break
+            day += timedelta(days=1)
+        if found:
+            return {"window_days": window, "slots": found, "reason": None}
+    last = steps[-1] if steps else None
+    return {"window_days": last, "slots": [], "reason": "有力なずらし先は見つかりませんでした"}
+
+
+def _attach_shift_and_alts(f: Finding, events: list[Event], now: datetime) -> None:
+    """重なり・移動の指摘に、ずらし先または「案が無い」報告と、別の方法を考える一文を足す。"""
+    if f.kind not in ("重なり", "移動", "未確認の重なり"):
+        return
+    by_id = {e.id: e for e in events}
+    targets = [by_id[i] for i in f.refs if i in by_id
+               and by_id[i].calendar not in ("household", "family")
+               and by_id[i].owner in ("self", "all")]
+    alt = "目的（何のため）と方法（どこで・どうやって）を分け、方法を変えても目的が果たせる別案も考える。買う・予約・支払いはしない。調べた店・経路は未確認と出どころをつける。"
+    report = "有力な代替案が無ければ、その旨を朝のまとめで報告する。"
+    if not f.proposal.endswith("。"):
+        f.proposal += "。"
+    if not targets:
+        f.proposal += "家用の予定は動かさない。" + report
+        return
+    picked = None
+    for ev in targets:
+        result = find_shift_slots(ev, events, now)
+        if result["slots"]:
+            picked = (ev, result)
+            break
+        if picked is None:
+            picked = (ev, result)
+    ev, result = picked
+    if result["slots"]:
+        win = result["window_days"]
+        lines = "、".join(fmt_md(a) for a, _ in result["slots"])
+        f.proposal += f"{ev.title} のずらし先（先{win}日で見つかった）：{lines}。" + alt
+        f.options = list(f.options) + [f"{fmt_md(a)}にずらす" for a, _ in result["slots"]]
+    else:
+        reason = result.get("reason") or "有力なずらし先は見つかりませんでした"
+        f.proposal += reason + "。" + alt + report
 
 
 def review(cases: list[Case], events: list[Event], now: datetime, goals: list[str],
@@ -197,6 +286,11 @@ def review(cases: list[Case], events: list[Event], now: datetime, goals: list[st
             if load > daily_load_limit_min:
                 found.append(Finding("作業量の目安", d.isoformat(), f"予定の合計 {load}分（目安 {daily_load_limit_min}分）",
                                      "1つを別の日に回す案を出す（管理はしない）", None, [], 1, []))
+
+    shift_horizon = now + timedelta(days=max(SHIFT_SEARCH_STEPS))
+    shift_pool = [e for e in events if e.end > now and e.start < shift_horizon]
+    for f in found:
+        _attach_shift_and_alts(f, shift_pool, now)
 
     found = _link(found)
     if goals:

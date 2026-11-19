@@ -59,6 +59,19 @@ class LookaheadTests(unittest.TestCase):
         event = {"id":"far", "title":"遠い予定", "start":"2026-12-04T10:00:00+09:00", "end":"2026-12-04T12:00:00+09:00", "calendar_role":"personal"}
         self.assertEqual(run([event], [], self.today, self.settings, days=14), [])
 
+    def test_default_horizon_is_seven_days(self):
+        inside = [
+            {"id":"a", "title":"本人A", "start":"2026-11-24T10:00:00+09:00", "end":"2026-11-24T11:00:00+09:00", "calendar_role":"personal"},
+            {"id":"b", "title":"本人B", "start":"2026-11-24T10:30:00+09:00", "end":"2026-11-24T11:30:00+09:00", "calendar_role":"personal"},
+        ]
+        outside = [
+            {"id":"c", "title":"本人C", "start":"2026-11-26T10:00:00+09:00", "end":"2026-11-26T11:00:00+09:00", "calendar_role":"personal"},
+            {"id":"d", "title":"本人D", "start":"2026-11-26T10:30:00+09:00", "end":"2026-11-26T11:30:00+09:00", "calendar_role":"personal"},
+        ]
+        self.assertIn("重なり", {f["type"] for f in run(inside, [], self.today, self.settings)})
+        self.assertEqual(run(outside, [], self.today, self.settings), [])
+        self.assertIn("重なり", {f["type"] for f in run(outside, [], self.today, self.settings, days=14)})
+
     def test_rerun_replaces_only_changed_day_and_neighbors(self):
         original = [{"type":"古い", "date":"2026-11-19", "refs":[], "urgency":"朝でよい", "text":"古い", "key":"old"},
                     {"type":"保持", "date":"2026-11-25", "refs":[], "urgency":"朝でよい", "text":"保持", "key":"keep"}]

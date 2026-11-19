@@ -97,7 +97,7 @@ class Round1(unittest.TestCase):
         self.assertTrue(any(f["kind"] == "家用だけ" for f in r["morning"] + r["record_only"]))
         r = review([Case("c", "歯医者の予約を取る", "予定あり", missing=["時刻"])], [], P("2026-11-17 22:00 JST"), goals=[])
         self.assertEqual(len(r["morning"] + r["record_only"]), 1)
-        near = E("f1", "遠足", "2026-12-01 09:00 JST", "2026-12-01 15:00 JST", location="公園")
+        near = E("f1", "遠足", "2026-11-24 09:00 JST", "2026-11-24 15:00 JST", location="公園")
         r = review([], [near], P("2026-11-17 22:00 JST"), goals=[])
         self.assertEqual(len(r["morning"] + r["record_only"]), 1)
         far = E("f2", "遠足", "2026-12-10 09:00 JST", "2026-12-10 15:00 JST", location="公園")
@@ -259,7 +259,7 @@ class Round2(unittest.TestCase):
 
     def test_a25_link_same_cause_and_shared_word(self):
         now = P("2026-11-17 22:00 JST")
-        ret = E("r", "移動（会場→家）", "2026-11-28 17:40 JST", "2026-11-28 18:40 JST", kind="move", meta={"direction": "return"})
+        ret = E("r", "移動（会場→家）", "2026-11-23 17:40 JST", "2026-11-23 18:40 JST", kind="move", meta={"direction": "return"})
         bday = Event("b", "北町のおばあちゃん誕生日", P("2026-12-05 00:00 JST"), P("2026-12-06 00:00 JST"), all_day=True, owner="all")
         cases = [Case("c1", "面接（11/23・11/28の時刻）", "確認待ち", due=P("2026-11-23 09:00 JST"), missing=["時刻"]),
                  Case("c2", "北町へ行く日程を決める", "迷い")]
