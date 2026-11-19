@@ -24,6 +24,11 @@ RUNNING = "実行中"
 FORCED_ADD = "forced_add"
 TENTATIVE = "tentative"
 GROUNDS = {FORCED_ADD, TENTATIVE}
+# 予定ばんが自分で置いた［仮］だけを、聞かずに直す例外（2026-11-19 本人が決定）。
+SELF_RESOLVE = "self_resolve"
+TENTATIVE_MOVE = "tentative_move"
+DUPLICATE_DELETE = "duplicate_delete"
+SELF_RESOLVE_KINDS = {TENTATIVE_MOVE, DUPLICATE_DELETE}
 FORCED_PREFIX = "［自動］"
 TENTATIVE_PREFIX = "［仮］"
 STYLE_ALL_CONFIRM = "全部確認"
@@ -292,7 +297,107 @@ def _exception_check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any]) ->
     limit = _tentative_max(cfg)
     if _active_tentative(ledger) >= limit:
         return False, f"［仮］はすでに{limit}件あります", {}
-    meta.update({"tentative_max": limit, "notify_level": "なし"})
+    meta.update({"tentative_max": limit, "notify_level": "なし",
+                 "title": title, "event_start": start, "event_end": payload.get("event_end")})
+    input_ref = basis.get("input_ref")
+    if isinstance(input_ref, str) and input_ref:
+        meta["input_ref"] = input_ref
+    return True, "", meta
+
+
+def _placed_tentative(ledger: Ledger, op_id: Any) -> tuple[dict[str, Any] | None, str]:
+    """予定ばんが例外の［仮］として置き、読み戻しまで済んだ、まだ閉じていない操作を返す。"""
+    if not isinstance(op_id, str) or not op_id:
+        return None, "元の［仮］の操作（origin_op_id）がありません"
+    row = ledger.get_op(op_id)
+    if row is None:
+        return None, "元の［仮］の操作が台帳にありません"
+    res = row.get("result") if isinstance(row.get("result"), dict) else {}
+    if row.get("kind") != "cal_personal" or res.get("grounds") != TENTATIVE:
+        return None, "予定ばんが置いた［仮］ではないので、聞かずには直しません"
+    if row.get("approval_id") or res.get("delegation_id"):
+        return None, "本人が承認した予定は、聞かずには直しません"
+    if row.get("state") != SUCCESS:
+        return None, "元の［仮］の書き込みが確かめ済みではありません"
+    if res.get("tentative_closed"):
+        return None, "元の［仮］はもう閉じています"
+    title = res.get("title")
+    if not isinstance(title, str) or not title.startswith(TENTATIVE_PREFIX) or title.startswith(FORCED_PREFIX):
+        return None, "件名が「［仮］」で始まらないので、聞かずには直しません"
+    if not isinstance(res.get("event_id"), str) or not res.get("event_id"):
+        return None, "元の［仮］の予定IDが記録されていません"
+    return row, ""
+
+
+def _current(res: dict[str, Any]) -> dict[str, Any]:
+    return {"event_id": res.get("event_id"), "title": res.get("title"),
+            "event_start": res.get("current_start", res.get("event_start")),
+            "event_end": res.get("current_end", res.get("event_end"))}
+
+
+def _self_resolve_check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
+    """予定ばんが自分で置いた［仮］の重なり・ダブりだけを、承認なしで動かす・消す。1つでも欠けたら通さない。"""
+    basis = op.get("basis")
+    if op.get("kind") != "cal_personal":
+        return False, "聞かずに直せるのは個人用カレンダーだけです", {}
+    if not isinstance(basis, dict):
+        return False, "根拠（basis）がありません", {}
+    if op.get("approval_id") or op.get("delegation"):
+        return False, "例外と承認・委任は一緒に使えません", {}
+    which = basis.get("kind")
+    if which not in SELF_RESOLVE_KINDS:
+        return False, "basis.kind は tentative_move か duplicate_delete だけです", {}
+    payload = op.get("payload")
+    if not isinstance(payload, dict) or not isinstance(payload.get("event_id"), str) or not payload.get("event_id"):
+        return False, "直す予定のID（payload.event_id）がありません", {}
+    if any(payload.get(key) for key in SENDING_KEYS):
+        return False, "聞かずに直すときは招待も送信もしません", {}
+    style = _setting(cfg, basis, "notify_style")
+    if style == STYLE_ALL_CONFIRM:
+        return False, "通知の型が「全部確認」なので聞かずには直しません", {}
+    origin, why = _placed_tentative(ledger, basis.get("origin_op_id"))
+    if origin is None:
+        return False, why, {}
+    ores = origin["result"]
+    if ores.get("event_id") != payload["event_id"]:
+        return False, "直す予定のIDが、予定ばんが置いた［仮］と一致しません", {}
+    before = _current(ores)
+    action = op.get("action")
+    meta: dict[str, Any] = {"authorization": "例外", "grounds": SELF_RESOLVE, "self_resolve_kind": which,
+                            "origin_op_id": origin["op_id"], "notify_level": "1行", "before": before}
+
+    if which == TENTATIVE_MOVE:
+        if action not in {"move", "update"}:
+            return False, "tentative_move の action は move か update だけです", {}
+        title = payload.get("title", before["title"])
+        if not isinstance(title, str) or not title.startswith(TENTATIVE_PREFIX) or title.startswith(FORCED_PREFIX):
+            return False, "動かした後も件名は「［仮］」で始めます", {}
+        start, end = payload.get("event_start"), payload.get("event_end")
+        if not isinstance(start, str) or "T" not in start or _now(start) is None:
+            return False, "移す先の日付と時刻（タイムゾーン付き）がありません", {}
+        if end is not None and (_now(end) is None or _now(end) <= _now(start)):
+            return False, "移す先の終わりの時刻が正しくありません", {}
+        meta["after"] = {"event_id": payload["event_id"], "title": title, "event_start": start, "event_end": end}
+        return True, "", meta
+
+    if action != "delete":
+        return False, "duplicate_delete の action は delete だけです", {}
+    keep, why = _placed_tentative(ledger, basis.get("keep_op_id"))
+    if keep is None:
+        return False, "残す方: " + why, {}
+    kres = keep["result"]
+    if keep["op_id"] == origin["op_id"] or kres.get("event_id") == ores.get("event_id"):
+        return False, "残す予定と消す予定が同じです", {}
+    ref = ores.get("input_ref")
+    if not isinstance(ref, str) or not ref or kres.get("input_ref") != ref:
+        return False, "同じ入力から予定ばんが置いた2件ではないので、聞かずには消しません", {}
+    if _current(kres)["title"] != before["title"] or _current(kres)["event_start"] != before["event_start"] \
+            or _current(kres)["event_end"] != before["event_end"]:
+        return False, "件名と時刻がまったく同じダブりではないので、聞かずには消しません", {}
+    kept_at, del_at = _now(keep.get("created_at")), _now(origin.get("created_at"))
+    if kept_at is None or del_at is None or not kept_at < del_at:
+        return False, "消してよいのは、後から置いた方だけです", {}
+    meta.update({"keep_op_id": keep["op_id"], "input_ref": ref, "after": None})
     return True, "", meta
 
 
@@ -420,14 +525,18 @@ def check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any], now: str | da
         delegation_ok, del_id, delegation = False, None, None
     approval_ok = _approval_authorized(ledger, op, digest, at)
     exception_ok, exception_meta = False, {}
-    if op.get("grounds") is not None or op.get("basis") is not None:
+    if op.get("grounds") == SELF_RESOLVE:
+        exception_ok, reason, exception_meta = _self_resolve_check(ledger, cfg, op)
+        if not exception_ok:
+            return _deny(reason)
+    elif op.get("grounds") is not None or op.get("basis") is not None:
         exception_ok, reason, exception_meta = _exception_check(ledger, cfg, op)
         if not exception_ok:
             return _deny(reason)
 
     if kind == "cal_personal":
         if not approval_ok and not delegation_ok and not exception_ok:
-            return _deny("本人カレンダーには有効な承認か範囲内の有効な委任、または条件を満たす強制追加・［仮］が必要です")
+            return _deny("本人カレンダーには有効な承認か範囲内の有効な委任、または条件を満たす強制追加・［仮］・予定ばんの［仮］の直しが必要です")
     elif kind == "reminder":
         linked_id = op.get("linked_op_id")
         linked = ledger.get_op(linked_id) if isinstance(linked_id, str) else None
@@ -483,11 +592,14 @@ def check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any], now: str | da
     out = {"allow": True, "op_id": op_id, "reason": "操作を実行中にしました", "existing_state": None}
     if exception_ok:
         out.update({"grounds": exception_meta["grounds"], "notify_level": exception_meta["notify_level"]})
+        if exception_meta["grounds"] == SELF_RESOLVE:
+            out.update({"self_resolve_kind": exception_meta["self_resolve_kind"],
+                        "before": exception_meta["before"], "after": exception_meta.get("after")})
     return out
 
 
 def result(ledger: Ledger, op_id: str, outcome: Any, readback_ok: bool | None,
-           now: str | datetime | None = None) -> dict[str, Any]:
+           now: str | datetime | None = None, event_id: str | None = None) -> dict[str, Any]:
     """外部実行結果を記録する。timeout/Noneは必ず照合待ちにする。"""
     at = _now_text(now)
     operation = ledger.get_op(op_id)
@@ -505,9 +617,28 @@ def result(ledger: Ledger, op_id: str, outcome: Any, readback_ok: bool | None,
     old_result = operation.get("result") if isinstance(operation.get("result"), dict) else {}
     saved = dict(old_result)
     saved.update({"outcome": outcome, "readback_ok": readback_ok, "reason": reason})
+    if isinstance(event_id, str) and event_id and saved.get("grounds") == TENTATIVE:
+        # 聞かずに直すときの照合用に、予定ばんが置いた［仮］の予定IDを残す。
+        saved["event_id"] = event_id
     handoff = "渡し済み（未確認）" if operation.get("kind") == "send" else None
     ledger.set_op_state(op_id, state, handoff_state=handoff, result=saved, now=at)
+    if state == SUCCESS and saved.get("grounds") == SELF_RESOLVE:
+        _apply_self_resolve(ledger, saved, at)
     return {"ok": True, "op_id": op_id, "state": state, "reason": reason}
+
+
+def _apply_self_resolve(ledger: Ledger, saved: dict[str, Any], at: str) -> None:
+    """聞かずに直した結果を元の［仮］へ写す（動かした先の時刻／消したら件数から外す）。"""
+    origin = ledger.get_op(saved.get("origin_op_id"))
+    if origin is None:
+        return
+    ores = dict(origin.get("result") or {})
+    if saved.get("self_resolve_kind") == TENTATIVE_MOVE and isinstance(saved.get("after"), dict):
+        ores.update({"current_start": saved["after"].get("event_start"), "current_end": saved["after"].get("event_end"),
+                     "title": saved["after"].get("title", ores.get("title"))})
+    elif saved.get("self_resolve_kind") == DUPLICATE_DELETE:
+        ores.update({"tentative_closed": True, "closed_how": "削除", "closed_at": at, "closed_reason": "ダブり"})
+    ledger.set_op_state(origin["op_id"], origin["state"], result=ores, now=at)
 
 
 def reconcile(ledger: Ledger, op_id: str, found: bool, now: str | datetime | None = None) -> dict[str, Any]:
@@ -543,7 +674,7 @@ def _cli() -> int:
             if args.action == "check":
                 out = check(ledger, cfg, data.get("op"), now)
             elif args.action == "result":
-                out = result(ledger, data["op_id"], data.get("outcome"), data.get("readback_ok"), now)
+                out = result(ledger, data["op_id"], data.get("outcome"), data.get("readback_ok"), now, data.get("event_id"))
             elif args.action == "reconcile":
                 out = reconcile(ledger, data["op_id"], data.get("found"), now)
             else:
