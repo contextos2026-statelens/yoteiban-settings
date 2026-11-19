@@ -11,6 +11,7 @@ from pathlib import Path
 TENTATIVE_MARK = "仮（未回答）"
 PREV_SUFFIX = "（前の値）"
 SAID_RULE_KEYS = frozenset({"家用の見分けの表", "本人が言ったルール"})
+# 人ごとの一覧にあるキーも上書き禁止。判定は stated_rules.protect_key。
 
 _VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
