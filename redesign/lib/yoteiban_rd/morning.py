@@ -4,9 +4,10 @@
   1つずつ「読めた（件数・時刻）／読めない（理由）」を残す。全部読めていなければ「予定なし」「新着なし」と書かない（正本25章）。
 - 今日の予定：個人用＋家用・ファミリーで本人・全員に分けたもの（第20・22章）。本人以外は載せない（記録だけ）。
   わからないは「✅確認してね」に回し、誰の予定かを聞くカードは1日1枚まで（第22章）。
-- 朝のまとめの書き方（2026-11-14・11-15 本人承認）：見出し（🌤天気・📅予定・✅確認してね）、見出しのあいだは1行あける、
-  1件1行（日時・件名・場所・出どころだけ）、件名は元のまま、無かったものは書かない、問いは本文に書かずカードで聞く、
-  「✅確認してね」には出どころを書く。何も載せるものが無い日（全部読めたときだけ）は「今日の知らせはありません」。
+- 朝のまとめは毎回天気を確認し、📅予定の先頭に天気・最高／最低気温・雨の時間帯を1行で載せる。
+  天気が読めなければ「天気は未確認」。雨の日に外出予定があれば、その行の下に「↳ 傘」を載せる。
+  変化の無い入口や中身の無い欄は出さず、読めないものの「未確認」は残す。
+  何も載せるものが無い日（全部読めたときだけ）は「今日の知らせはありません」の1行に、読めた天気を添える。
 道具は文を作るだけで、送らない・書かない。
 """
 from __future__ import annotations
@@ -73,6 +74,52 @@ def _line(ev: Event, labels: list[str]) -> str:
     return f"・{when} {ev.title}{where}（{'・'.join(labels)}）"
 
 
+def _weather_text(weather: list[str] | None) -> tuple[str, bool]:
+    values = [str(value).strip() for value in (weather or []) if str(value).strip()]
+    if not values or any("未確認" in value for value in values):
+        return "天気は未確認", False
+    return "、".join(values), True
+
+
+def _rain_expected(text: str) -> bool:
+    if "雨" not in text:
+        return False
+    no_rain = ("雨なし", "雨はなし", "雨はありません", "雨の時間帯なし", "雨の時間帯はなし",
+               "雨の時間帯はありません", "降らない", "降水なし", "降水確率0%")
+    return not any(marker in text for marker in no_rain)
+
+
+def _outdoor_event(event: Event) -> bool:
+    if event.meta.get("outdoor") is not None:
+        return bool(event.meta["outdoor"])
+    location = (event.location or "").strip().casefold()
+    title = event.title.casefold()
+    indoors_or_remote = ("自宅", "自分の家", "オンライン", "zoom", "google meet", "teams", "電話", "通話")
+    if any(marker in f"{title} {location}" for marker in indoors_or_remote):
+        return False
+    if location:
+        return True
+    outdoor_terms = ("通院", "病院", "受診", "買い物", "買物", "公園", "遠足", "登校", "通学", "出勤",
+                     "送迎", "迎え", "駅", "外出", "旅行", "面談", "面接", "会場", "集合", "散歩", "出発", "訪問")
+    return any(term in title for term in outdoor_terms)
+
+
+def _visible_notices(notices: list[str] | None) -> list[str]:
+    visible = []
+    for value in notices or []:
+        text = str(value).strip()
+        empty_headings = {"新着", "返事待ち", "夜の間の自動追加", "夜の間の［自動］追加"}
+        if not text or text in empty_headings or ("未確認" not in text and (
+            ("新着" in text and any(word in text for word in ("なし", "ありません")))
+            or ("返事待ち" in text and any(word in text for word in ("なし", "ありません")))
+            or ("夜" in text and "自動" in text and "追加" in text and any(word in text for word in ("なし", "ありません")))
+            or ("家用" in text and "個人用" in text and "写" in text)
+        )):
+            continue
+        visible.append(text)
+    return visible
+
+
 def build_morning(day: date, sources: list[Source], reads: dict, owner_cfg: dict | None = None,
                   weather: list[str] | None = None, confirm: list[dict] | None = None,
                   notices: list[str] | None = None) -> dict:
@@ -129,22 +176,30 @@ def build_morning(day: date, sources: list[Source], reads: dict, owner_cfg: dict
                              "why": "家用の予定の見分け（第22章。1日1件まで）"})
             owner_card_used = True
     for c in confirm or []:
-        check_lines.append(f"・{c['text']}（{c['source']}）")
+        text = str(c.get("text", "")).strip()
+        source = str(c.get("source", "")).strip()
+        if text and _visible_notices([text]):
+            check_lines.append(f"・{text}（{source}）" if source else f"・{text}")
     for l in cov["lines"]:
         check_lines.append("・" + l)
-    parts = []
-    if weather:
-        parts.append("🌤天気\n" + "\n".join(weather[:2]))
-    if plan:
-        parts.append("📅予定\n" + "\n".join(_line(e, labels) for e, labels in plan))
+    weather_summary, weather_read = _weather_text(weather)
+    rain = _rain_expected(weather_summary)
+    plan_lines = [f"・天気：{weather_summary}"]
+    for event, labels in plan:
+        plan_lines.append(_line(event, labels))
+        if rain and _outdoor_event(event):
+            plan_lines.append("　↳ 傘")
+    visible_notices = _visible_notices(notices)
+    parts = ["📅予定\n" + "\n".join(plan_lines)]
     if check_lines:
         parts.append("✅確認してね\n" + "\n".join(check_lines))
-    if notices:
-        parts.append("".join(notices[:2]))
-    if not plan and not check_lines and not notices:
-        body = "今日の知らせはありません" if cov["can_say_none"] else "✅確認してね\n" + "\n".join("・" + l for l in cov["lines"])
-        if weather:
-            body = parts[0] + "\n\n" + body
+    if visible_notices:
+        parts.append("\n".join(visible_notices[:2]))
+    if not plan and not check_lines and not visible_notices and cov["can_say_none"]:
+        weather_suffix = f"（天気：{weather_summary}）" if weather_read else "（天気は未確認）"
+        body = "今日の知らせはありません" + weather_suffix
+    elif not plan and not check_lines and not visible_notices:
+        body = "\n\n".join(parts + ["✅確認してね\n" + "\n".join("・" + l for l in cov["lines"])])
     else:
         body = "\n\n".join(parts)
     return {"body": body, "cards": cards, "coverage": cov,

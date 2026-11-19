@@ -204,9 +204,33 @@ class Round2(unittest.TestCase):
 
     def test_a19_morning_nothing(self):
         S = [Source("p", "個人用カレンダー", "personal"), Source("h", "家用カレンダー", "household")]
-        self.assertEqual(build_morning(date(2026, 11, 18), S, {"p": {"ok": True, "events": []}, "h": {"ok": True, "events": []}})["body"], "今日の知らせはありません")
+        empty = build_morning(date(2026, 11, 18), S,
+                              {"p": {"ok": True, "events": []}, "h": {"ok": True, "events": []}},
+                              weather=["晴れ・最高 18℃・最低 10℃・雨なし"])
+        self.assertEqual(empty["body"], "今日の知らせはありません（天気：晴れ・最高 18℃・最低 10℃・雨なし）")
         b = build_morning(date(2026, 11, 18), S, {"p": {"ok": True, "events": []}})["body"]
         self.assertNotIn("ありません", b); self.assertNotIn("予定なし", b); self.assertIn("家用カレンダーは未確認", b)
+        self.assertIn("天気は未確認", b)
+
+    def test_a22_morning_weather_precedes_plan_and_rain_adds_umbrella(self):
+        S = [Source("p", "個人用カレンダー", "personal")]
+        reads = {"p": {"ok": True, "events": [E("e", "通院", "2026-11-18 10:00 JST",
+                                                       "2026-11-18 11:00 JST")]}}
+        body = build_morning(date(2026, 11, 18), S, reads,
+                             weather=["くもり・最高 18℃・最低 10℃・雨 14:00〜16:00"])["body"]
+        self.assertLess(body.index("・天気："), body.index("通院（"))
+        self.assertIn("通院（個人用カレンダー）\n　↳ 傘", body)
+
+    def test_a23_no_change_notices_and_household_copy_note_are_suppressed(self):
+        S = [Source("p", "個人用カレンダー", "personal")]
+        body = build_morning(
+            date(2026, 11, 18), S, {"p": {"ok": True, "events": []}},
+            weather=["晴れ・最高 18℃・最低 10℃・雨なし"],
+            notices=["新着なし", "夜の間の［自動］追加はありません", "返事待ちはありません",
+                     "家用カレンダーから個人用へ［自動］で写しました"],
+            confirm=[{"text": "返事待ちはありません", "source": "台帳"}],
+        )["body"]
+        self.assertEqual(body, "今日の知らせはありません（天気：晴れ・最高 18℃・最低 10℃・雨なし）")
 
     def test_a20_classify_priority(self):
         cfg = {"self_names": ["たろう"], "roster": ["はなこ"], "table": [{"word": "当番", "class": "other"}], "learned": [{"word": "ヨガ", "class": "other"}]}
