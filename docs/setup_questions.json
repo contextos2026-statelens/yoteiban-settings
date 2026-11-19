@@ -1,0 +1,32 @@
+{
+  "comment": "版ごとの足した質問の一覧。個人の値は置かない。質問の全文は skills/setup/SKILL.md。追加設定では、記憶の「完了した設定の版」より後、今の VERSION 以下に added_in がある質問だけを聞く。基準の版（baseline_version）以前の質問は初回設定の分で、追加設定では繰り返さない。",
+  "baseline_version": "1.0.28",
+  "releases": [
+    {
+      "version": "1.0.29",
+      "added_question_ids": [],
+      "note": "追加設定の形式を入れた。この版で足した本人への新しい質問は無い。薬・食事・風呂などの体の用事を設定で聞く質問は、後の版で足す（聞いてから入れる。聞く前から既定の枠は入れない）。"
+    }
+  ],
+  "questions": [
+    {"id": "nickname", "added_in": "1.0.28", "title": "呼び名", "memory_key": "呼び名", "in_initial_setup": true, "setup_question": "1"},
+    {"id": "calendar", "added_in": "1.0.28", "title": "カレンダー", "memory_key": "個人用カレンダーID", "in_initial_setup": true, "setup_question": "2"},
+    {"id": "reminders", "added_in": "1.0.28", "title": "リマインダー", "memory_key": "リマインダーの専用リスト", "in_initial_setup": true, "setup_question": "2の2", "integration": "reminders", "unavailable_if_declined": "出発と準備の知らせはチャットだけになる。場所で鳴らす知らせは使えない。"},
+    {"id": "inboxes", "added_in": "1.0.28", "title": "入口", "memory_key": "読む先の一覧", "in_initial_setup": true, "setup_question": "3"},
+    {"id": "notion_parent", "added_in": "1.0.28", "title": "見る表", "memory_key": "Notionの親ページ", "in_initial_setup": true, "setup_question": "4", "integration": "notion", "unavailable_if_declined": "表で見返す機能は使えない。承認や確認はチャットのカードで行う。"},
+    {"id": "family_roster", "added_in": "1.0.28", "title": "家族・近い人", "memory_key": "家族ロスター", "in_initial_setup": true, "setup_question": "5"},
+    {"id": "self_names", "added_in": "1.0.28", "title": "本人の呼ばれ方", "memory_key": "本人の呼ばれ方", "in_initial_setup": true, "setup_question": "5の2"},
+    {"id": "trusted_sources", "added_in": "1.0.28", "title": "見落としたくないもの", "memory_key": "信頼する相手", "in_initial_setup": true, "setup_question": "6"},
+    {"id": "mute_modes", "added_in": "1.0.28", "title": "ミュートとモード", "memory_key": "モード", "in_initial_setup": true, "setup_question": "7"},
+    {"id": "confirm_send", "added_in": "1.0.28", "title": "確認文の送り方", "memory_key": "確認文の送り方", "in_initial_setup": true, "setup_question": "8", "default": "B"},
+    {"id": "candidate_place", "added_in": "1.0.28", "title": "候補の確認場所", "memory_key": "候補の確認場所", "in_initial_setup": true, "setup_question": "9"},
+    {"id": "times", "added_in": "1.0.28", "title": "時間の設定", "memory_key": "確認の間隔", "in_initial_setup": true, "setup_question": "10", "default": "今の間隔（8時〜22時の2時間おき）"},
+    {"id": "life_scenes", "added_in": "1.0.28", "title": "暮らしの場面", "memory_key": "暮らしの場面", "in_initial_setup": true, "setup_question": "11"},
+    {"id": "notify_style", "added_in": "1.0.28", "title": "通知の型", "memory_key": "通知の型", "in_initial_setup": true, "setup_question": "12", "default": "3"},
+    {"id": "night_notify", "added_in": "1.0.28", "title": "夜の通知", "memory_key": "夜の通知", "in_initial_setup": true, "setup_question": "13", "default": "急ぎだけ夜に知らせる（見に行かない）"},
+    {"id": "tentative", "added_in": "1.0.28", "title": "仮の予定", "memory_key": "仮の使用", "in_initial_setup": true, "setup_question": "14", "default": "使う"},
+    {"id": "location_use", "added_in": "1.0.28", "title": "現在地の使用", "memory_key": "現在地の使用", "in_initial_setup": true, "setup_question": "15の2", "integration": "location", "default": "使わない", "unavailable_if_declined": "いまいる場所で『どこで』を省く判断はしない。"},
+    {"id": "household_classify", "added_in": "1.0.28", "title": "家用の予定の見分け", "memory_key": "家用の見分けの表", "in_initial_setup": true, "setup_question": "16", "said_rule": true},
+    {"id": "delegation_adjust", "added_in": "1.0.28", "title": "他の人との予定調整機能", "memory_key": "他の人との予定調整機能", "in_initial_setup": true, "setup_question": "18", "default": "使わない"}
+  ]
+}
