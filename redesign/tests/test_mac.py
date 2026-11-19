@@ -18,12 +18,14 @@ class Fake(BaseHTTPRequestHandler):
     plan = []  # 返し方の列: 200 / 500 / 400 / "slow" / ("ai", text)
     seen = []
     seen_headers = []
+    seen_bodies = []
 
     def log_message(self, *a):
         pass
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        Fake.seen_bodies.append(body)
         Fake.seen.append(json.loads(body))
         Fake.seen_headers.append(dict(self.headers.items()))
         p = Fake.plan.pop(0) if Fake.plan else 200
@@ -88,7 +90,7 @@ class StoreTest(unittest.TestCase):
 class SorterTest(unittest.TestCase):
     def setUp(self):
         self.s, self.url = server()
-        Fake.plan, Fake.seen, Fake.seen_headers = [], [], []
+        Fake.plan, Fake.seen, Fake.seen_headers, Fake.seen_bodies = [], [], [], []
 
     def tearDown(self):
         self.s.shutdown()
@@ -133,9 +135,14 @@ class SorterTest(unittest.TestCase):
 class WakerTest(unittest.TestCase):
     def setUp(self):
         self.s, self.url = server()
-        Fake.plan, Fake.seen = [], []
+        Fake.plan, Fake.seen, Fake.seen_headers, Fake.seen_bodies = [], [], [], []
+        from unittest.mock import patch
+        self.env_patcher = patch.dict(os.environ, {"YOTEIBAN_WEBHOOK_AUTH": "",
+                                                    "YOTEIBAN_WEBHOOK_FORMAT": "raw"})
+        self.env_patcher.start()
 
     def tearDown(self):
+        self.env_patcher.stop()
         self.s.shutdown()
 
     def test_authorization_header_is_forwarded_without_exposing_it(self):
@@ -145,6 +152,7 @@ class WakerTest(unittest.TestCase):
             result = wake(self.url, "k", {"request_id": "auth"}, sleep=lambda *_: None)
         self.assertEqual(result["state"], "起こし済み")
         self.assertEqual(Fake.seen_headers[-1].get("Authorization"), auth)
+        self.assertEqual(Fake.seen_headers[-1].get("X-Automation-Key"), "test-value")
         self.assertIn("X-Yoteiban-Signature", Fake.seen_headers[-1])
         self.assertNotIn(auth, repr(result))
 
@@ -155,7 +163,40 @@ class WakerTest(unittest.TestCase):
             result = wake(self.url, "k", {"request_id": "no-auth"}, sleep=lambda *_: None)
         self.assertEqual(result["state"], "起こし済み")
         self.assertNotIn("Authorization", Fake.seen_headers[-1])
+        self.assertNotIn("X-Automation-Key", Fake.seen_headers[-1])
         self.assertIn("X-Yoteiban-Signature", Fake.seen_headers[-1])
+
+    def test_bearer_prefix_is_normalized_for_both_auth_forms(self):
+        from unittest.mock import patch
+        for auth in ("Bearer test-value", "test-value"):
+            with patch.dict(os.environ, {"YOTEIBAN_WEBHOOK_AUTH": auth}):
+                wake(self.url, "k", {"request_id": "auth-form"}, sleep=lambda *_: None)
+            self.assertEqual(Fake.seen_headers[-1].get("Authorization"), "Bearer test-value")
+            self.assertEqual(Fake.seen_headers[-1].get("X-Automation-Key"), "test-value")
+
+    def test_envelope_format_signatures_and_auth_headers(self):
+        from unittest.mock import patch
+        payload = {"kind": "yoteiban-wake", "request_id": "envelope-test", "title": "架空"}
+        payload_bytes = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        inner_signature = hmac.new(b"k", payload_bytes, hashlib.sha256).hexdigest()
+        with patch.dict(os.environ, {"YOTEIBAN_WEBHOOK_FORMAT": "envelope",
+                                     "YOTEIBAN_WEBHOOK_AUTH": "test-value"}):
+            result = wake(self.url, "k", payload, sleep=lambda *_: None)
+        self.assertEqual(result["state"], "起こし済み")
+        envelope = Fake.seen[-1]
+        self.assertEqual(envelope, {"format": "yoteiban-envelope-v1", "payload": payload_bytes.decode(),
+                                    "signature": inner_signature})
+        outer_signature = hmac.new(b"k", Fake.seen_bodies[-1], hashlib.sha256).hexdigest()
+        self.assertEqual(Fake.seen_headers[-1].get("X-Yoteiban-Signature"), outer_signature)
+        self.assertEqual(Fake.seen_headers[-1].get("Authorization"), "Bearer test-value")
+        self.assertEqual(Fake.seen_headers[-1].get("X-Automation-Key"), "test-value")
+
+    def test_raw_format_keeps_the_existing_json_body(self):
+        payload = {"kind": "yoteiban-wake", "request_id": "raw-test"}
+        expected = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        wake(self.url, "k", payload, sleep=lambda *_: None)
+        self.assertEqual(Fake.seen[-1], payload)
+        self.assertEqual(Fake.seen_bodies[-1], expected)
 
     def test_signature_header_is_present_with_and_without_authorization(self):
         from unittest.mock import patch
@@ -255,7 +296,9 @@ class HeartbeatClockTest(unittest.TestCase):
         caught = catch_up("2026-11-18T10:03:00+09:00", due, "2026-11-18T09:59:00+09:00", sent_store, wake_fn)
         self.assertEqual([x["case_id"] for x in caught], ["c2"])
         self.assertEqual(len(emitted), 2)
-        self.assertEqual(set(emitted[0]), {"kind", "case_id", "due_at"})
+        self.assertEqual(set(emitted[0]), {"kind", "request_id", "case_id", "due_at"})
+        expected = "review:" + hashlib.sha256(b"c1|2026-11-18T10:00:00+09:00").hexdigest()[:24]
+        self.assertEqual(emitted[0]["request_id"], expected)
 
 
 class InstallAssetsTest(unittest.TestCase):
@@ -285,7 +328,7 @@ class InstallAssetsTest(unittest.TestCase):
 class RunTest(unittest.TestCase):
     def setUp(self):
         self.s, self.url = server()
-        Fake.plan, Fake.seen, Fake.seen_headers = [], [], []
+        Fake.plan, Fake.seen, Fake.seen_headers, Fake.seen_bodies = [], [], [], []
 
     def tearDown(self):
         self.s.shutdown()
@@ -322,6 +365,33 @@ class RunTest(unittest.TestCase):
             self.assertEqual((r[WAKE], len(Fake.seen)), (1, 0))
             self.assertIn('"state": "shadow"', open(os.path.join(d, "watch.log.jsonl")).read())
             self.assertNotIn("集合", open(os.path.join(d, "watch.log.jsonl")).read())
+
+    def test_clock_shadow_records_without_waking(self):
+        from datetime import datetime
+        with tempfile.TemporaryDirectory() as d:
+            store = Store(os.path.join(d, "clock.db"))
+            emitted = []
+            cfg = {"state_dir": d, "due_url": "test", "shadow": True}
+            due = [{"case_id": "case-shadow", "next_review_at": "2026-11-18T10:00:00+09:00"}]
+            result = runmod.clock_once(cfg, store, datetime.fromisoformat("2026-11-18T10:01:00+09:00"),
+                                       fetch=lambda _url: due,
+                                       wake_fn=lambda payload: emitted.append(payload),
+                                       ping_fn=lambda *_: True)
+            self.assertEqual(len(result), 1)
+            self.assertEqual(emitted, [])
+            log_text = open(os.path.join(d, "watch.log.jsonl"), encoding="utf-8").read()
+            self.assertIn('"state": "shadow"', log_text)
+            self.assertIn('"request_id": "review:', log_text)
+            self.assertFalse(store.has_clock_sent("case-shadow", due[0]["next_review_at"]))
+            self.assertTrue(store.has_clock_shadow_sent("case-shadow", due[0]["next_review_at"]))
+            cfg["shadow"] = False
+            flag_due = [{"case_id": "case-flag-shadow", "next_review_at": due[0]["next_review_at"]}]
+            runmod.clock_once(cfg, store, datetime.fromisoformat("2026-11-18T10:02:00+09:00"),
+                              fetch=lambda _url: flag_due,
+                              wake_fn=lambda payload: emitted.append(payload),
+                              ping_fn=lambda *_: True, shadow=True)
+            self.assertEqual(emitted, [])
+            self.assertTrue(store.has_clock_shadow_sent("case-flag-shadow", flag_due[0]["next_review_at"]))
 
     def test_payload_truncation(self):
         with tempfile.TemporaryDirectory() as d:

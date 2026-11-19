@@ -8,6 +8,7 @@
 - Gmail・カレンダーは読み取り専用で接続します。外部AIは既定で無効です。
 - 通知先が署名を検証するよう設定します。署名は送信JSON本文のHMAC-SHA256で、鍵は `YOTEIBAN_WEBHOOK_KEY` に置きます。
 - Grok Botの受け口のようにAuthorizationヘッダーで鍵を受ける先には `YOTEIBAN_WEBHOOK_AUTH` を使います。
+- Grok Botの受け口へは `YOTEIBAN_WEBHOOK_FORMAT=envelope` を設定します。`YOTEIBAN_WEBHOOK_AUTH` には送り手の鍵だけを書けばBearerは自動で付きます。`env` は `sh` で読むため、空白を含む値は必ず `"..."` で囲みます。
 - `heartbeat_url`、`clock_heartbeat_url`、`due_url`、`webhook_url` は本人が用意した値を `config.json` に設定します。Git管理下の例には実値を入れません。
 
 ## インストール

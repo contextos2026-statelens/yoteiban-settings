@@ -18,10 +18,27 @@ def wake(url: str, key: str | None, payload: dict, retries: int | None = None, t
          authorization_header: str | None = None) -> dict:
     if not url or not key:
         return {"state": "起こし失敗", "why": "WebhookのURLか鍵が設定にない"}
-    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
-    signature = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    payload_bytes = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    body = payload_bytes
+    signature = hmac.new(key.encode(), payload_bytes, hashlib.sha256).hexdigest()
+    if os.environ.get("YOTEIBAN_WEBHOOK_FORMAT") == "envelope":
+        body = json.dumps({
+            "format": "yoteiban-envelope-v1",
+            "payload": payload_bytes.decode("utf-8"),
+            "signature": signature,
+        }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        signature = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
     if authorization_header is None:
         authorization_header = os.environ.get("YOTEIBAN_WEBHOOK_AUTH")
+    auth_headers = {}
+    if authorization_header:
+        if authorization_header.startswith("Bearer "):
+            auth_value = authorization_header[7:]
+            auth_headers["Authorization"] = authorization_header
+        else:
+            auth_value = authorization_header
+            auth_headers["Authorization"] = "Bearer " + authorization_header
+        auth_headers["X-Automation-Key"] = auth_value
     delays = list(backoff) if backoff is not None else [backoff_s * (i + 1) for i in range(max((retries or 3) - 1, 0))]
     total = len(delays) + 1 if retries is None else min(retries, len(delays) + 1)
     last = ""
@@ -29,8 +46,7 @@ def wake(url: str, key: str | None, payload: dict, retries: int | None = None, t
         headers = {
             "Content-Type": "application/json", "X-Yoteiban-Signature": signature,
             "Idempotency-Key": payload.get("request_id", "")}
-        if authorization_header:
-            headers["Authorization"] = authorization_header
+        headers.update(auth_headers)
         try:
             req = urllib.request.Request(url, data=body, method="POST", headers=headers)
         except Exception:
