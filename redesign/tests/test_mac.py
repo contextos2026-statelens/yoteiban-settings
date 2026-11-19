@@ -54,12 +54,15 @@ def server():
 def make_chatdb(path, rows):
     c = sqlite3.connect(path)
     c.executescript("""create table message(ROWID integer primary key, text text, attributedBody blob, date int,
-        is_from_me int, handle_id int); create table handle(ROWID integer primary key, id text);
+        is_from_me int, handle_id int, guid text); create table handle(ROWID integer primary key, id text);
         create table chat(ROWID integer primary key, chat_identifier text, style int);
         create table chat_message_join(chat_id int, message_id int);
         insert into handle values(1,'h-family'),(2,'h-unknown'); insert into chat values(1,'c-1',45);""")
     for r in rows:
-        c.execute("insert into message values(?,?,?,?,?,?)", r)
+        if len(r) == 6:
+            c.execute("insert into message(ROWID,text,attributedBody,date,is_from_me,handle_id) values(?,?,?,?,?,?)", r)
+        else:
+            c.execute("insert into message values(?,?,?,?,?,?,?)", r)
         c.execute("insert into chat_message_join values(1,?)", (r[0],))
     c.commit(); c.close()
 
@@ -264,9 +267,12 @@ class SourceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "chat.db")
             ab = b"\x04\x0bstreamtyped\x81NSString\x01\x94\x84\x01+\x09hello abc"
-            make_chatdb(p, [(1, "明日10時", None, 0, 0, 1), (2, None, ab, 0, 0, 2)])
+            make_chatdb(p, [(1, "明日10時", None, 0, 0, 1, "MsgGuidOne"), (2, None, ab, 0, 0, 2)])
             items = read_imessage(p, 0)
             self.assertEqual([i.text for i in items], ["明日10時", "hello abc"])
+            self.assertEqual(items[0].native_id, "guid:msgguidone")
+            self.assertEqual(items[1].native_id, "rowid:2")
+            self.assertEqual(items[0].extra["rowid"], 1)
             self.assertEqual(read_imessage(p, 2), [])
             with self.assertRaises(SourceError):
                 read_imessage(os.path.join(d, "none.db"), 0)

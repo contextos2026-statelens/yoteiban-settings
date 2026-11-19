@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 from .db import connect, migrate
+from .refs import canonicalize_source, normalize_native_ref
 
 
 class SchemaError(ValueError):
@@ -228,17 +229,33 @@ class Ledger:
     def _record_history(self, case_id, change, reason, now, actor="ボット", basis=""):
         self.conn.execute("INSERT INTO history(h_id,case_id,at,actor,change,reason,basis) VALUES(?,?,?,?,?,?,?)", (secrets.token_hex(12), case_id, now, actor, _json(change), reason, basis))
 
+    def _existing_input(self, source, native_ref, input_id):
+        """正規形で照合する。見つかっても保存済みの source / native_ref は書き換えない。"""
+        if self.conn.execute("SELECT 1 FROM raw_inputs WHERE input_id=?", (input_id,)).fetchone():
+            return input_id
+        canon = canonicalize_source(source)
+        for row in self.conn.execute("SELECT input_id, source, native_ref FROM raw_inputs"):
+            if (canonicalize_source(row["source"]) == canon
+                    and normalize_native_ref(row["source"], row["native_ref"]) == native_ref):
+                return row["input_id"]
+        return None
+
     def ingest(self, raw, now=None):
+
         if not isinstance(raw, dict):
             raise SchemaError("raw は辞書で指定してください")
         source, native_ref = raw.get("source"), raw.get("native_ref")
         received_at = raw.get("received_at")
         if not all(isinstance(x, str) and x for x in (source, native_ref, received_at)):
             raise SchemaError("source、native_ref、received_at が必要です")
+        native_ref = normalize_native_ref(source, native_ref)
+        if not native_ref:
+            raise SchemaError("source、native_ref、received_at が必要です")
         input_id = self._digest(f"{source}|{native_ref}")[:24]
         with self.tx():
-            if self.conn.execute("SELECT 1 FROM raw_inputs WHERE input_id=?", (input_id,)).fetchone():
-                return input_id, False
+            existing = self._existing_input(source, native_ref, input_id)
+            if existing:
+                return existing, False
             days = self.get_setting("retention_days", 90)
             try:
                 received = datetime.fromisoformat(received_at.replace("Z", "+00:00"))

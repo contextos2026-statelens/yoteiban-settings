@@ -112,9 +112,30 @@ class UrgencyTest(unittest.TestCase):
         asks = [n.offer(f"k{i}", "a", t)["ask_too_many"] for i in range(10)]
         self.assertEqual(asks.count(True), 1)
 
+    def test_night_always_matches_day(self):
+        night = self.ctx("2026-11-18 23:00 JST", night_setting="always", next_delivery=T("2026-11-19 08:00 JST"))
+        day = self.ctx("2026-11-18 10:00 JST", next_delivery=T("2026-11-18 18:00 JST"))
+        mid = Item("習い事の振替", time=T("2026-12-06 14:00 JST"), importance="中")
+        self.assertEqual((decide(mid, night).tier, decide(mid, night).deliver), ("今日中", "next_delivery"))
+        self.assertEqual(decide(mid, day).deliver, "next_delivery")
+        self.assertEqual(decide(mid, self.ctx("2026-11-18 23:00 JST")).deliver, "morning_top")
+        high = Item("高・待てる", time=T("2026-11-19 18:00 JST"), importance="高")
+        self.assertEqual(decide(high, night).deliver, "now")
+        self.assertEqual(decide(high, self.ctx("2026-11-18 23:00 JST")).deliver, "morning_top")
+        self.assertEqual(decide(high, self.ctx("2026-11-18 23:00 JST", night_setting="safety_only")).deliver, "morning_top")
+        self.assertEqual(decide(Item("家族", family_emergency=True), night).deliver, "now")
+        no_night = Item("高・待てる", time=T("2026-11-19 18:00 JST"), importance="高", night_now=False)
+        self.assertEqual(decide(no_night, night).deliver, "morning_top")
+        type4 = self.ctx("2026-11-18 23:00 JST", night_setting="always", notify_type=4)
+        self.assertEqual(decide(high, type4).deliver, "morning_top")
+        with self.assertRaises(CalcError):
+            decide(Item("x"), self.ctx("2026-11-18 23:00 JST", night_setting="whenever"))
+
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 class SpeedTestB2Cases(unittest.TestCase):
@@ -189,7 +210,7 @@ class UrgencyRulesTest(unittest.TestCase):
             now = base + timedelta(hours=now_h)
             nxt = (now + timedelta(days=1)).replace(hour=7) if now.hour >= 7 else now.replace(hour=7)
             for typ in (1, 2, 3, 4, 6):
-                for night in ("urgent_only", "safety_only"):
+                for night in ("urgent_only", "safety_only", "always"):
                     c = Context(now=now, next_summary=nxt, notify_type=typ, night_setting=night)
                     for off in (20, 50, 90, 200, 600, 1000, 1600, 5000):
                         for lv in (None, "緊急", "高", "中", "低"):
@@ -199,3 +220,4 @@ class UrgencyRulesTest(unittest.TestCase):
                                 self.assertIn(d.deliver, TIER_DELIVER[d.tier], (now_h, typ, night, off, lv, d))
                                 n += 1
         self.assertGreater(n, 3000)
+

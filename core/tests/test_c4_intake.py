@@ -189,6 +189,21 @@ class IntakeTests(unittest.TestCase):
         self.assertFalse(denied["ok"])
         self.assertEqual(denied["reason"], "鍵ファイルの権限が緩い")
 
+    def test_gmail_refs_of_two_shapes_become_one_row(self):
+        first = self._payload(request_id="wake-1", source="gmail", ref="<ABC@example.com>",
+                              body_text="案内", role="不明")
+        second = self._payload(request_id="wake-2", source="gmail", native_ref=" abc@example.com ",
+                              ref="ignored", body_text="案内", role="不明")
+        a = handle(self.ledger, self.cfg, signed(first), first, NOW, SECRET)
+        b = handle(self.ledger, self.cfg, signed(second), second, NOW, SECRET)
+        self.assertTrue(a["ok"] and a["created"])
+        self.assertTrue(b["ok"])
+        self.assertFalse(b["created"])
+        self.assertEqual(a["input_id"], b["input_id"])
+        self.assertEqual(self.ledger.conn.execute("select count(*) from raw_inputs").fetchone()[0], 1)
+        self.assertEqual(self.ledger.conn.execute("select native_ref from raw_inputs").fetchone()[0],
+                         "abc@example.com")
+
 
 if __name__ == "__main__":
     unittest.main()

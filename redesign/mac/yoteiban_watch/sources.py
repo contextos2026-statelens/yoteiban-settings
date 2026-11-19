@@ -10,6 +10,13 @@ import sqlite3
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+import sys
+
+_CORE = Path(__file__).resolve().parents[3] / "core"
+if str(_CORE) not in sys.path:
+    sys.path.insert(0, str(_CORE))
+from yoteiban_core.refs import normalize_native_ref
 
 APPLE_EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)
 
@@ -57,7 +64,7 @@ def read_imessage(db_path: str, after_rowid: int, limit: int = 200) -> list[Inco
     try:
         rows = con.execute(
             """select m.ROWID, m.text, m.attributedBody, m.date, m.is_from_me, coalesce(h.id,''),
-                      coalesce(c.chat_identifier,''), coalesce(c.style,0)
+                      coalesce(c.chat_identifier,''), coalesce(c.style,0), coalesce(m.guid,'')
                from message m left join handle h on h.ROWID=m.handle_id
                left join chat_message_join cmj on cmj.message_id=m.ROWID
                left join chat c on c.ROWID=cmj.chat_id
@@ -67,10 +74,12 @@ def read_imessage(db_path: str, after_rowid: int, limit: int = 200) -> list[Inco
     finally:
         con.close()
     out = []
-    for rowid, text, ab, d, me, handle, chat, style in rows:
+    for rowid, text, ab, d, me, handle, chat, style, guid in rows:
         body = text or _decode_attributed(ab)
         ts = APPLE_EPOCH + timedelta(seconds=(d or 0) / 1e9 if (d or 0) > 1e12 else (d or 0))
-        out.append(Incoming("imessage", str(rowid), handle, body, ts.isoformat(), chat, style == 43, bool(me)))
+        native = normalize_native_ref("imessage", f"guid:{guid}" if guid else str(rowid))
+        out.append(Incoming("imessage", native, handle, body, ts.isoformat(), chat, style == 43, bool(me),
+                            extra={"rowid": int(rowid)}))
     return out
 
 
@@ -94,13 +103,32 @@ def run_tool(argv: list, service: str, timeout: int = 60) -> object:
         raise SourceError("道具の出力を読めません") from e
 
 
+
+def _gmail_message_id(m: dict) -> str:
+    """RFC の Message-ID を優先し、無ければ API の id を使う。どちらも正規形にする。"""
+    for key in ("rfc822msgid", "rfc822MessageId", "rfc822_message_id", "message_id"):
+        value = m.get(key)
+        if value:
+            return normalize_native_ref("gmail", value)
+    payload = m.get("payload")
+    headers = m.get("headers")
+    if headers is None and isinstance(payload, dict):
+        headers = payload.get("headers")
+    if isinstance(headers, list):
+        for header in headers:
+            if str(header.get("name", "")).casefold() == "message-id" and header.get("value"):
+                return normalize_native_ref("gmail", header.get("value"))
+    mid = m.get("messageId") or m.get("id") or ""
+    return normalize_native_ref("gmail", mid) if mid else ""
+
+
 def read_gmail(cmd: list[str], after_iso: str | None) -> list[Incoming]:
     """cmd 例（設定）：["gog","--enable-commands","gmail","-j","--results-only","gmail","search","newer_than:1d"]"""
     data = run_tool(cmd, "gmail")
     items = data if isinstance(data, list) else (data or {}).get("messages", []) if isinstance(data, dict) else []
     out = []
     for m in items:
-        mid = str(m.get("id") or m.get("messageId") or "")
+        mid = _gmail_message_id(m)
         if not mid:
             continue
         at = str(m.get("date") or m.get("internalDate") or "")
@@ -123,10 +151,10 @@ def read_calendar_changes(cmd: list[str], known: dict) -> tuple[list[Incoming], 
             continue
         now_map[eid] = upd
         if eid not in known:
-            out.append(Incoming("calendar", f"{eid}@{upd}", "", str(e.get("summary", "")), upd, extra={"change": "増えた"}))
+            out.append(Incoming("calendar", normalize_native_ref("calendar", f"{eid}@{upd}"), "", str(e.get("summary", "")), upd, extra={"change": "増えた"}))
         elif known[eid] != upd:
-            out.append(Incoming("calendar", f"{eid}@{upd}", "", str(e.get("summary", "")), upd, extra={"change": "変わった"}))
+            out.append(Incoming("calendar", normalize_native_ref("calendar", f"{eid}@{upd}"), "", str(e.get("summary", "")), upd, extra={"change": "変わった"}))
     for eid in known:
         if eid not in now_map:
-            out.append(Incoming("calendar", f"{eid}@gone", "", "", "", extra={"change": "消えた"}))
+            out.append(Incoming("calendar", normalize_native_ref("calendar", f"{eid}@gone"), "", "", "", extra={"change": "消えた"}))
     return out, now_map

@@ -50,6 +50,13 @@ class NightTable(unittest.TestCase):
             if night("safety_only", **dict(item)) == "now":
                 self.assertTrue(name.startswith("(c)"), name)
 
+    def test_always_does_not_defer_just_because_night(self):
+        self.assertEqual(night("always", family_emergency=True), "now")
+        self.assertEqual(night("always", time="2026-11-19 18:00 JST", importance="高"), "now")
+        self.assertEqual(night("always", time="2026-11-25 18:00 JST"), "morning")
+        self.assertEqual(night("always", time="2026-11-18 23:00 JST", end="2026-11-19 00:30 JST", importance="中"), "now")
+        self.assertEqual(night("always", time="2026-11-19 18:00 JST", importance="高", night_now=False), "morning_top")
+
 
 class MaskTest(unittest.TestCase):
     CASES = [
