@@ -199,6 +199,40 @@ class MissingAnswerTests(unittest.TestCase):
         self.assertEqual(report["pending"], [])
 
 
+class AliasAnswerTests(unittest.TestCase):
+    def test_alias_answer_is_treated_as_answered(self):
+        question = {
+            "id": "calendar_fixture",
+            "memory_key": "個人用カレンダーID",
+            "aliases": ["個人用カレンダー", "書く先のカレンダー"],
+        }
+        self.assertEqual(
+            sd.pending_questions([question], {"書く先のカレンダー": "架空の回答"}),
+            [],
+        )
+
+    def test_missing_alias_answer_stays_pending_and_tentative_is_skipped(self):
+        question = {
+            "id": "calendar_fixture",
+            "memory_key": "個人用カレンダーID",
+            "aliases": ["個人用カレンダー", "書く先のカレンダー"],
+        }
+        self.assertEqual(sd.pending_questions([question], {}), [question])
+        self.assertEqual(
+            sd.pending_questions([question], {"個人用カレンダー": "仮（未回答）"}),
+            [],
+        )
+
+    def test_catalog_rejects_non_array_aliases(self):
+        catalog = sd.load_catalog()
+        catalog["questions"][0]["aliases"] = "呼び名"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "bad_aliases.json"
+            path.write_text(json.dumps(catalog), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                sd.load_catalog(path)
+
+
 class PrepareItemsTests(unittest.TestCase):
     def test_prepare_list_exists_and_has_columns(self):
         path = Path(R) / "docs" / "prepare_items.md"
