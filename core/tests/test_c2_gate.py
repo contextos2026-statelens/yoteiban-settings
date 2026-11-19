@@ -43,9 +43,12 @@ class GateTests(unittest.TestCase):
         self.assertFalse(home["allow"])
         bad = check(self.ledger, self.cfg, self.op(target="unconfigured"), NOW)
         self.assertFalse(bad["allow"])
-        self.assertFalse(check(self.ledger, self.cfg, self.op("cal_draft", "calendar-draft", draft_kind="確定"), NOW)["allow"])
-        good = check(self.ledger, self.cfg, self.op("cal_draft", "calendar-draft", draft_kind="準備"), NOW)
-        self.assertTrue(good["allow"])
+        # 下書きカレンダーは作らない（2026-11-19）。どの下書きの種類でも拒否する。
+        for draft_kind in ("確定", "準備", "候補"):
+            denied = check(self.ledger, self.cfg, self.op("cal_draft", "calendar-draft", draft_kind=draft_kind), NOW)
+            self.assertFalse(denied["allow"])
+            self.assertIn("下書き", denied["reason"])
+        self.assertEqual(self.ledger.list_ops(), [])
 
     def test_approval_is_required_matches_content_and_is_consumed(self):
         payload = {"title": "行事", "event_start": "2026-11-21T10:00:00+09:00"}
