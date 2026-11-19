@@ -7,6 +7,7 @@
 - つなぐ：同じ日付を指す案件と移動（同じ原因）は1件にまとめる。2件にだけ出てくる語（土地・行事）でつながるものは1件にまとめる。
 - 計画し直す：昨日の結果（previous）と当たり外れ（feedback）を受け取り、新しい・続き・片付いたを出す。
   2晩続けて出して返事が無いものは1段上げ、3回目は朝に出さず週次の一覧へ。「外れ」と言われた案は30日出さない。
+  「外れ」で止めるのは、その1件（同じ種類・同じ予定や案件・同じ日付）だけ。同じ件名でも別の日・別の回は止めない。
 """
 from __future__ import annotations
 
@@ -66,7 +67,14 @@ class Finding:
 
 
 def _key(f: Finding) -> str:
-    return f.kind + "|" + (",".join(sorted(f.refs)) if f.refs else f.title)
+    """当たり外れ・続きの照合に使う、その1件だけの鍵。
+
+    予定や案件の参照があればそれで決まる（別の回は別の参照）。参照が無いときは、
+    件名だけだと同じ件名の別の日まで「外れ」で止めてしまうので、種類・日付・件名を合わせて使う。
+    """
+    if f.refs:
+        return f.kind + "|" + ",".join(sorted(f.refs))
+    return f.kind + "|" + (f.when or "日付なし") + "|" + f.title
 
 
 def review(cases: list[Case], events: list[Event], now: datetime, goals: list[str],
