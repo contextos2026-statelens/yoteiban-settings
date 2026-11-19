@@ -14,8 +14,8 @@ from yoteiban_core import setup_delta as sd
 def fixture_catalog():
     data = sd.load_catalog()
     extra = {
-        "id": "body_routines",
-        "added_in": "1.0.30",
+        "id": "body_routines_fixture",
+        "added_in": "1.0.31",
         "title": "体の用事",
         "memory_key": "体の用事",
         "in_initial_setup": False,
@@ -25,7 +25,7 @@ def fixture_catalog():
     data = {
         "baseline_version": data["baseline_version"],
         "releases": list(data["releases"])
-        + [{"version": "1.0.30", "added_question_ids": ["body_routines"], "note": "試験用"}],
+        + [{"version": "1.0.31", "added_question_ids": ["body_routines_fixture"], "note": "試験用"}],
         "questions": list(data["questions"]) + [extra],
     }
     return data
@@ -72,14 +72,14 @@ class CatalogTests(unittest.TestCase):
 class DeltaFixtureTests(unittest.TestCase):
     def test_adds_only_later_questions(self):
         catalog = fixture_catalog()
-        added = sd.questions_added_since(catalog, "1.0.28", "1.0.30")
-        self.assertEqual([q["id"] for q in added], ["body_routines"])
-        self.assertEqual(sd.questions_added_since(catalog, "1.0.30", "1.0.30"), [])
+        added = sd.questions_added_since(catalog, "1.0.30", "1.0.31")
+        self.assertEqual([q["id"] for q in added], ["body_routines_fixture"])
+        self.assertEqual(sd.questions_added_since(catalog, "1.0.31", "1.0.31"), [])
         self.assertEqual(sd.questions_added_since(catalog, "1.0.28", "1.0.29"), [])
 
     def test_skip_answered_and_tentative(self):
         catalog = fixture_catalog()
-        added = sd.questions_added_since(catalog, "1.0.28", "1.0.30")
+        added = sd.questions_added_since(catalog, "1.0.30", "1.0.31")
         self.assertEqual(sd.pending_questions(added, {}), added)
         self.assertEqual(sd.pending_questions(added, {"体の用事": "食事は12時"}), [])
         self.assertEqual(sd.pending_questions(added, {"体の用事": "仮（未回答）"}), [])
@@ -119,7 +119,7 @@ class DeltaFixtureTests(unittest.TestCase):
 
     def test_declined_text(self):
         catalog = fixture_catalog()
-        item = next(q for q in catalog["questions"] if q["id"] == "body_routines")
+        item = next(q for q in catalog["questions"] if q["id"] == "body_routines_fixture")
         self.assertIn("入れない", sd.declined_unavailable_text(item))
 
     def test_cli_empty_delta(self):
@@ -140,6 +140,18 @@ class DeltaFixtureTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sd.load_catalog(path)
 
+
+
+
+class Version130Tests(unittest.TestCase):
+    def test_real_catalog_adds_1_0_30(self):
+        catalog = sd.load_catalog()
+        added = sd.questions_added_since(catalog, "1.0.29", "1.0.30")
+        self.assertEqual(
+            [q["id"] for q in added],
+            ["body_routines", "usage_cap", "heartbeat", "phone_permissions", "family_role"],
+        )
+        self.assertEqual(sd.questions_added_since(catalog, "1.0.28", "1.0.29"), [])
 
 
 class PrepareItemsTests(unittest.TestCase):
