@@ -21,7 +21,7 @@ from .calc import (JST, Event, find_conflicts, find_duplicates, travel_check, da
                    conflict_kind, free_slots, is_duplicate)
 
 MAX_MORNING = 3
-HORIZON_DAYS = 35  # nightly スキルの「先5週間」とそろえる
+HORIZON_DAYS = 14  # nightly スキルの「先2週間」とそろえる。重い締切の手順分けとお祝いは HEAVY_DAYS / OCCASION_DAYS
 HEAVY_DAYS = 35
 OCCASION_DAYS = 21
 INFO_EARLY_DAYS = 14  # 欠けた情報は、期限の14日前（重いものは21日前）から朝に出す。それより先は記録だけ

@@ -116,7 +116,7 @@ def cmd_nightly(data: dict) -> dict:
     if isinstance(fb, str):
         fb = load_feedback(fb)
     return review(cases, [_ev(e) for e in data.get("events", [])], parse_time(data["now"]),
-                  data.get("goals", []), data.get("horizon_days", 35), data.get("daily_load_limit_min"),
+                  data.get("goals", []), data.get("horizon_days", 14), data.get("daily_load_limit_min"),
                   data.get("previous"), fb, data.get("coverage"))
 
 
