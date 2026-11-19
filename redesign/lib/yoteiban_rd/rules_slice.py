@@ -1,6 +1,6 @@
 """決まりを軽くする：仕事ごとに、正本の必要な章だけを切り出す。
 
-正本（Git の rules/seihon.md、箱の写しは /home/box/agent-data/yoteiban-rules/seihon.md）は1つのまま。
+正本（Git の rules/seihon.md。箱の写しの場所は設定の tools.seihon または環境変数 YOTEIBAN_SEIHON / YRD_SEIHON）は1つのまま。
 ここは章番号の地図だけを持ち、本文はその都度正本から切り出す（二重管理しない）。
 - 仕事の章（TASK_CHAPTERS）＋場面で足す章（--add）を出す。
 - 切り出せないとき（章が見つからない・正本が読めない・知らない仕事）は止めずに、正本の全文を出して終了コード3を返す
@@ -13,7 +13,11 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_SEIHON = "/home/box/agent-data/yoteiban-rules/seihon.md"
+from .tool_paths import resolve_seihon
+
+def default_seihon() -> str:
+    return resolve_seihon()
+
 
 # 仕事 → 正本の章。2（大原則）はいつも入れる。場面で要る章はスキル本文の「--add」で足す。
 # "20.1" のような文字は節だけを読む（正本の第20・21章には節の見出しがある）。節が見つからなければ章全部を読む。
@@ -180,13 +184,13 @@ def parse_add(s: str) -> list[str]:
 def main(argv=None) -> int:
     import argparse, json
     p = argparse.ArgumentParser(description="正本から仕事に要る章だけを出す（切り出せなければ全文を出して終了コード3）")
-    p.add_argument("--seihon", default=DEFAULT_SEIHON)
+    p.add_argument("--seihon", default=None, help="正本の道。省略時は環境変数・設定・リポジトリの既定")
     p.add_argument("--task", required=True)
     p.add_argument("--add", default="", help="足す章（例：18,22／節だけ 4.3／段落だけ 21:余裕のとり方）")
     p.add_argument("--stats", action="store_true", help="文字数だけを出す")
     a = p.parse_args(argv)
     try:
-        text = Path(a.seihon).read_text(encoding="utf-8")
+        text = Path(a.seihon or resolve_seihon()).read_text(encoding="utf-8")
     except OSError as e:
         print(json.dumps({"error": "正本を読めません。正本の場所を確かめ、本人に1行で報告する", "detail": str(e)},
                          ensure_ascii=False))

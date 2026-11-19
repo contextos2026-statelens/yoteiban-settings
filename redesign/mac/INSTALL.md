@@ -1,6 +1,6 @@
 # Mac miniへの導入・停止・削除
 
-この手順は本人が承認した後に実行します。見張り番と時計は別々のlaunchdサービスとして動きます。どちらも専用の `com.yoteiban.*` 名と `~/yoteiban-watch` の場所を使い、既存の伝書鳩には触れません。
+この手順は本人が承認した後に実行します。見張り番と時計は別々のlaunchdサービスとして動きます。どちらも専用の `com.yoteiban.*` 名と `~/yoteiban-watch` の場所を使い、すでに動いている、代わりに送るボットには触れません。
 
 ## 導入前
 
@@ -55,7 +55,7 @@ launchctl bootout "gui/$(id -u)/com.yoteiban.clock" || true
 bash scripts/uninstall.sh
 ```
 
-見張り番と時計を停止し、専用plist、アプリ、設定、環境ファイルを削除します。`~/yoteiban-watch/state` は削除しません。伝書鳩や他のサービスには触れません。
+見張り番と時計を停止し、専用plist、アプリ、設定、環境ファイルを削除します。`~/yoteiban-watch/state` は削除しません。代わりに送るボットや他のサービスには触れません。
 
 ## データの扱い
 

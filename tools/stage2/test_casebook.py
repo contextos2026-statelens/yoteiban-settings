@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -19,9 +20,7 @@ CASEBOOK = HERE / "casebook.py"
 TOOLS = HERE.parent
 QUEUE = TOOLS / "queue.py"
 WORKLOG = TOOLS / "worklog.py"
-BACKUP = Path(
-    "/home/box/agent-data/yoteiban-backups/stage2-20261117/tools-backup"
-)
+BACKUP = Path(os.environ.get("YOTEIBAN_TOOLS_BACKUP") or os.environ.get("YRD_TOOLS_BACKUP") or "")
 
 # このテストが触ってよい領域の接頭辞
 TMP_PREFIX = "/tmp/"

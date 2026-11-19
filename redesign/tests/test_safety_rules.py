@@ -135,7 +135,7 @@ class SkillCoverage(unittest.TestCase):
     """取りこぼし：スキルが参照する章が切り出しに入る／決まりの一覧が本文にある／道具の置き場が1つ。"""
     TASK_OF = {"intake": "intake", "write": "write", "notify": "notify", "nightly": "nightly", "infer": "infer",
                "adjust": "adjust", "interval": "interval", "setup": "setup", "delegate": "delegate", "chat": "chat"}
-    LIB = "/home/box/agent-data/yoteiban-redesign/lib"
+    LIB = '"$YOTEIBAN_REDESIGN_LIB"'
 
     def text(self, d):
         with open(os.path.join(_paths.ROOT, "skills", d, "SKILL.md"), encoding="utf-8") as f:

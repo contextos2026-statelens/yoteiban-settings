@@ -73,7 +73,7 @@ skills/common/SKILL.md の【安全の線】が全部。要点：書くのは承
 prepare（渡し前）→ 本人が文面を見て OK → approve_and_handoff（OK の印が要る。渡し済み・結果不明なら断る）→ confirmed（送信完了）か unknown（結果不明）。may_resend は常に「再送しない」。返事待ちは別の状態。
 
 ## 10. 戻し方
-- Mac mini：launchctl で止め、~/yoteiban-watch を消す。伝書鳩には触れていない。
+- Mac mini：launchctl で止め、~/yoteiban-watch を消す。代わりに送るボットには触れていない。
 - 箱：再設計版のスキルを外せば、今の予定ばんのまま。本番のスキル・ルーチンは変えていない。
 
 ## 11. 未確認

@@ -5,7 +5,7 @@ description: >-
 ---
 予定ばんの対話の早道
 
-まず「予定ばんの運用ルール」を読み（同じ会話で読んであれば読み直さない）、正本は次だけを切り出して読む：`cd /home/box/agent-data/yoteiban-redesign/lib && python3 -m yoteiban_rd.rules_slice --task chat`（第2章）。
+まず「予定ばんの運用ルール」を読み（同じ会話で読んであれば読み直さない）、正本は次だけを切り出して読む：`cd "$YOTEIBAN_REDESIGN_LIB" && python3 -m yoteiban_rd.rules_slice --task chat`（第2章）。
 場面で足す章は下の1.のとおり。
 
 本人が返事を待っている対話（質問カードへの答え、朝のまとめや案への要望、チャットでの頼み、口頭の「定期確認と同じことをして」、他の人への調整文の相談など。例であり、これに限らない）は、待ち時間を短くする。目安：単発で簡単な頼みは30秒前後。1つの調整は1〜3分、難しいものでも5分以内。いくつか重なっても合計1〜3分、最大5分。短いほど良い。本人が待たない定期確認（ルーチン）は対象外。
@@ -15,11 +15,11 @@ description: >-
 3. 計算：計算係を1回だけ。予定が複数なら check-write に「news」でまとめて渡す（同じ依頼の中どうしの重なりも見る）。空きを探すときは `cli free`（日・時間帯・要る長さ。持ち主不明の予定との重なりは unconfirmed に出るので「未確認」と1行添える）。
 4. 書く・記録する：承認のある書き込みと記録は並列の1手にまとめる。書いた結果は返ってきた値（時刻とカレンダーID）で確かめ、読み直しの1手を足さない。安全の線は早道でも同じ（承認・ID照合・家用に書かない・送信は本人の「送る」の後）。
 5. 返す：結果を1〜3行。要るときだけ質問カード1枚。
-6. 口頭の定期確認：前回の控え（`/home/box/agent-data/yoteiban-state/last_check.json`）からの差分だけを返す：`python3 -m yoteiban_rd.cli diff`（前回の控え・今回読んだもの・読めなかった入口・読んだ範囲を渡す）。full_needed が true（控えが無い・12時間より古い）のときだけ、全部を読む定期確認をする。読めなかった入口があれば「〇〇は未確認」と書き、「変わりなし」とは言わない（can_say_no_change が true のときだけ言える）。定期確認・朝のまとめ・口頭の確認の最後に、今回の控えを `cli snapshot`（または diff の snapshot）で last_check.json に保存する。
+6. 口頭の定期確認：前回の控え（`$YOTEIBAN_STATE/last_check.json`）からの差分だけを返す：`python3 -m yoteiban_rd.cli diff`（前回の控え・今回読んだもの・読めなかった入口・読んだ範囲を渡す）。full_needed が true（控えが無い・12時間より古い）のときだけ、全部を読む定期確認をする。読めなかった入口があれば「〇〇は未確認」と書き、「変わりなし」とは言わない（can_say_no_change が true のときだけ言える）。定期確認・朝のまとめ・口頭の確認の最後に、今回の控えを `cli snapshot`（または diff の snapshot）で last_check.json に保存する。
 7. 目安を超えそうなとき（読む先が遅い・件数が多い）：分かった分を先に返し、読めていない入口は「未確認」と書く。残りは次の返事で続ける。
 
 8. 待ち時間を記録する（手を増やさない）：最後の並列の1手（書く・記録する、または返事の直前の呼び出し）に、次の1行の追記を入れる。
-   `echo '{"asked_at":"<本人の発言の時刻>","logged_at":"'"$(date '+%Y-%m-%d %H:%M:%S')"' JST","scene":"simple|dialog|multi","adjustments":<調整の数>}' >> /home/box/agent-data/yoteiban-state/latency.jsonl`
+   `echo '{"asked_at":"<本人の発言の時刻>","logged_at":"'"$(date '+%Y-%m-%d %H:%M:%S')"' JST","scene":"simple|dialog|multi","adjustments":<調整の数>}' >> $YOTEIBAN_STATE/latency.jsonl`
    scene：単発で簡単＝simple、本人が待つ対話＝dialog、複数の頼みを一度に＝multi。本人の名前・件名・本文は書かない（時刻と場面と数だけ）。ルーチン（本人が待たない定期確認）は記録しない。判定は `cli latency`（path にこのファイル）で行う。
 
 変更の記録は Git の CHANGELOG.md に従う。

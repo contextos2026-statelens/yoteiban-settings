@@ -2,16 +2,53 @@
   "db_path": "<DB_PATH>",
   "cal_personal_id": "<CALENDAR_ID>",
   "cal_draft_id": "<DRAFT_CALENDAR_ID>",
-  "cal_readonly_ids": ["<READONLY_CALENDAR_ID>"],
+  "cal_readonly_ids": [
+    "<READONLY_CALENDAR_ID>"
+  ],
   "reminder_list_id": "<REMINDER_LIST_ID>",
-  "reminder_readonly_list_ids": ["<READONLY_LIST_ID>"],
-  "notion_db_ids": ["<NOTION_DATABASE_ID>"],
+  "reminder_readonly_list_ids": [
+    "<READONLY_LIST_ID>"
+  ],
+  "notion_db_ids": [
+    "<NOTION_DATABASE_ID>"
+  ],
   "webhook_secret_env": "<WEBHOOK_SECRET_ENV_NAME>",
-  "heartbeat_urls": {"watch": "<WATCH_URL>", "clock": "<CLOCK_URL>", "nightly": "<NIGHTLY_URL>", "interval": "<INTERVAL_URL>"},
+  "heartbeat_urls": {
+    "watch": "<WATCH_URL>",
+    "clock": "<CLOCK_URL>",
+    "nightly": "<NIGHTLY_URL>",
+    "interval": "<INTERVAL_URL>"
+  },
   "backup_public_key_path": "<PUBLIC_KEY_PATH>",
-  "backup_target": {"kind": "<TARGET_KIND>", "ref": "<TARGET_REF>"},
-  "ai": {"enabled": false, "provider": "<PROVIDER>", "fast_model": "<FAST_MODEL>", "strong_model": "<STRONG_MODEL>", "key_env": "<AI_KEY_ENV_NAME>", "yen_per_1k_in": 0, "yen_per_1k_out": 0},
-  "quiet_hours": {"start": "<HH:MM>", "end": "<HH:MM>"},
+  "backup_target": {
+    "kind": "<TARGET_KIND>",
+    "ref": "<TARGET_REF>"
+  },
+  "ai": {
+    "enabled": false,
+    "provider": "<PROVIDER>",
+    "fast_model": "<FAST_MODEL>",
+    "strong_model": "<STRONG_MODEL>",
+    "key_env": "<AI_KEY_ENV_NAME>",
+    "yen_per_1k_in": 0,
+    "yen_per_1k_out": 0
+  },
+  "quiet_hours": {
+    "start": "<HH:MM>",
+    "end": "<HH:MM>"
+  },
   "morning_max_items": 3,
-  "retention_days": 30
+  "retention_days": 30,
+  "_tools_note": "道具の置き場は tools か環境変数 YOTEIBAN_* / YRD_*。箱の絶対パスはGitに書かない。",
+  "tools": {
+    "repo": "<REPO_PATH>",
+    "seihon": "<SEIHON_PATH>",
+    "redesign_lib": "<REDESIGN_LIB_PATH>",
+    "state": "<STATE_DIR>",
+    "tools_dir": "<TOOLS_DIR>",
+    "queue": "<QUEUE_PATH>",
+    "casebook_py": "<CASEBOOK_PY>",
+    "delegation_py": "<DELEGATION_PY>",
+    "nightly_state": "<NIGHTLY_STATE_DIR>"
+  }
 }

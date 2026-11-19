@@ -5,14 +5,14 @@ description: >-
 ---
 予定ばんのカレンダーへの書き込み
 
-まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd /home/box/agent-data/yoteiban-redesign/lib && python3 -m yoteiban_rd.rules_slice --task write`（第2・12・15・16・17・18・20.1・20.2・20.3・20.5・20.6・22・25章）。終了コード3なら全文を読んで続ける。版はGitの `VERSION` に従い、本文に版番号は直書きしない。
+まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd "$YOTEIBAN_REDESIGN_LIB" && python3 -m yoteiban_rd.rules_slice --task write`（第2・12・15・16・17・18・20.1・20.2・20.3・20.5・20.6・22・25章）。終了コード3なら全文を読んで続ける。版はGitの `VERSION` に従い、本文に版番号は直書きしない。
 場面で足す章：移動や並びの余裕を足す → --add 21.4／［仮］の枠を洗い出す → --add 21.9／夜に知らせるかを決める → --add 19／他の人の確認が要る・確認文 → --add 11,24:使わない設定,24:流れ,24:聞く必要の判断,24:返事の読み方／送信の状態 → --add 4.3。
 
 【書く前の手順】
 1. 承認を確かめる。強制追加（第16章）と［仮］（第17章）は、章の条件に全部当たるときだけ。推測した日時は強制追加にしない。開始・期限がもう過ぎていれば書かない（第18章）。
 2. 書き込み先の照合（第15章）：対象のカレンダーIDを道具で記憶の『個人用カレンダーID』と照合する。違えば書かずに本人に報告する。家用カレンダー（primary・ファミリー）には書かない。
 3. 検算（第15章）：計算係の check-write に、新しい予定と、その日の予定（個人用＋家用・ファミリーで本人・全員・わからないに分けたもの。第22章）を渡す。
-   `cd /home/box/agent-data/yoteiban-redesign/lib && echo '{"new": {...}, "events": [...]}' | python3 -m yoteiban_rd.cli check-write`
+   `cd "$YOTEIBAN_REDESIGN_LIB" && echo '{"new": {...}, "events": [...]}' | python3 -m yoteiban_rd.cli check-write`
    - conflicts（重なり）・duplicates（ダブり）・travel（移動の予定が無い・移動が間に合わない）が出たら、書かずに本人に2案を質問カードで出す。
    - unconfirmed（誰の予定か分からない家用の予定との重なり）は止めないが、案に「誰の予定か未確認」の1行を入れる。
    - 曜日は返り値の weekday を使う。文に曜日を書いたら `python3 -m yoteiban_rd.cli weekday` に {"text": "<文>", "base": "<今日>"} を渡し、mismatches が空であることを確かめる。

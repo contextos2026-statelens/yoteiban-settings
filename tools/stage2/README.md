@@ -109,7 +109,7 @@ python3 casebook.py --file /tmp/casebook.json show --request-id req-001
 本番ストアは使わない。テスト自身が `/tmp` に作業用ディレクトリを作り、そこへだけ書く。
 
 ```bash
-python3 /home/box/agent-data/yoteiban-tools/stage2/test_casebook.py
+python3 tools/stage2/test_casebook.py
 ```
 
 対象: 依頼登録の冪等、1依頼→複数案件、案件作成の冪等、不正遷移の拒否、実行結果不明時に再実行を促さない、確認無しで送信完了にできない、check の検出、`--file` 必須、現行ツールのハッシュ一致、`queue.py` / `worklog.py` の隔離スモーク。
@@ -186,7 +186,7 @@ python3 delegation.py --file /tmp/delegation.json audit
 ### テスト
 
 ```bash
-python3 /home/box/agent-data/yoteiban-tools/stage2/test_delegation.py
+python3 tools/stage2/test_delegation.py
 ```
 
 テスト自身が `/tmp` に作業用ディレクトリを作り、そこへだけ書く。対象: 期間外・範囲外は要確認、未承認テンプレは確定不可、承認済みかつ条件内は確認省略可、共有許可だけでは送信不可、Bot間確認なしで送信完了にできない、渡し直し防止、実行結果不明で自動再送なし、check の検出、`--file` 必須。

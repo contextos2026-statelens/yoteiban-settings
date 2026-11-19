@@ -5,14 +5,14 @@ description: >-
 ---
 予定ばんの毎晩の見直し
 
-まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd /home/box/agent-data/yoteiban-redesign/lib && python3 -m yoteiban_rd.rules_slice --task nightly`（第2・10・14・18・19・20.1・20.3・20.4・20.6・20.8・22・23・25章）。終了コード3なら全文を読んで続ける。版はGitの `VERSION` に従い、本文に版番号は直書きしない。
+まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd "$YOTEIBAN_REDESIGN_LIB" && python3 -m yoteiban_rd.rules_slice --task nightly`（第2・10・14・18・19・20.1・20.3・20.4・20.6・20.8・22・23・25章）。終了コード3なら全文を読んで続ける。版はGitの `VERSION` に従い、本文に版番号は直書きしない。
 場面で足す章：予定調整の案（枠・移動の余裕）を作る → --add 21.4,21.7,21.8,21.9／他の人の返事待ち → --add 24:使わない設定,24:返事を追う,24:返事の読み方。
 
 【手順】
 1. 集める（何も書かない）：台帳の開いている案件、記憶の『読む先の一覧』のカレンダー全部（個人用・家用の primary・ファミリー。読むだけ）の先5週間。家用・ファミリーの予定は第22章で本人・全員・本人以外・わからないに分ける（見分けの表を先に読む）。1つでも読めなければ、見直しの結果に「〇〇は未確認」を入れ、「予定なし」とは書かない。
 2. 計算係の nightly に渡す：
-   `cd /home/box/agent-data/yoteiban-redesign/lib && echo '<JSON>' | python3 -m yoteiban_rd.cli nightly`
-   入力：{"now", "cases": [...], "events": [{"id","title","start","end","calendar"（personal／household／family）,"owner"（self／all／other／unknown）,"kind"（move／prep／meal など）,"location","all_day","meta"}], "goals": [記憶の目的の一覧], "previous": <昨日の結果そのまま>, "feedback": "/home/box/agent-data/yoteiban-state/nightly/feedback.jsonl", "coverage": <coverage の結果>}。範囲の既定は35日。
+   `cd "$YOTEIBAN_REDESIGN_LIB" && echo '<JSON>' | python3 -m yoteiban_rd.cli nightly`
+   入力：{"now", "cases": [...], "events": [{"id","title","start","end","calendar"（personal／household／family）,"owner"（self／all／other／unknown）,"kind"（move／prep／meal など）,"location","all_day","meta"}], "goals": [記憶の目的の一覧], "previous": <昨日の結果そのまま>, "feedback": "$YOTEIBAN_STATE/nightly/feedback.jsonl", "coverage": <coverage の結果>}。範囲の既定は35日。
    返り値：morning（朝に出す最大3件）・record_only（記録だけ）・weekly（2回出して返事が無いので週次へ）・suppressed（「外れ」と言われて30日出さない）・diff（新しい・続き・片付いた）・feedback_card（当たり外れを聞くカード、1日1枚）。
 3. 読み直して、計算係にできないことを足す（ここが考える仕事）：
    - 別々の案件どうしのつながり（同じ土地・同じ家族・同じ行事）。計算係が「つながり」「まとめ」にしたものは、本当に同じ原因かを確かめ、違えば分ける。
@@ -22,11 +22,11 @@ description: >-
    - 手順分けは、計算係が出した空き枠（本人の予定と重ならない）を使う。本人の進み具合が分からないときは、最初の1手だけを出す。
 4. 朝のまとめに載せるのは最大3件。1件は「何に気づいたか／案（2つまで）／やること1つ」。問いは本文に書かず、質問カードで1つずつ（朝のまとめの書き方は「予定ばんの重要度と通知」）。家用だけにある本人の予定（kind が「家用だけ」）は、その日の朝のまとめの📅予定に載ることを確かめる（載せるのは朝のまとめの道具 morning）。
 5. 何も変えない。カレンダーに書くのは、朝に本人が承認した後だけ（手順分けの枠も同じ）。勝手に候補を増やさない。送らない。
-6. 結果を全部残す：今夜の返り値をそのまま `/home/box/agent-data/yoteiban-state/nightly/<日付>.json` に置く（明日の previous になる）。載せなかったものも残す。何も無い夜は朝に何も出さない。
+6. 結果を全部残す：今夜の返り値をそのまま `$YOTEIBAN_STATE/nightly/<日付>.json` に置く（明日の previous になる）。載せなかったものも残す。何も無い夜は朝に何も出さない。
 
 【当たり外れ（毎日）】
 - 朝のまとめのあと、feedback_card があれば質問カードで1枚だけ聞く（当たり／外れ／まだ分からない）。
-- 答えを記録する：`echo '{"path": "/home/box/agent-data/yoteiban-state/nightly/feedback.jsonl", "key": "<カードの key>", "verdict": "<答え>", "at": "<今>", "title": "<1行>"}' | python3 -m yoteiban_rd.cli feedback`
+- 答えを記録する：`echo '{"path": "$YOTEIBAN_STATE/nightly/feedback.jsonl", "key": "<カードの key>", "verdict": "<答え>", "at": "<今>", "title": "<1行>"}' | python3 -m yoteiban_rd.cli feedback`
 - 週に1回、`python3 -m yoteiban_rd.cli hit-rate`（{"path", "now", "days": 7}）で当たり率を出し、朝のまとめの補足に1文で書く。「外れ」が続く種類は、出し方を変える案を本人に1回だけ聞く（決まりを変えるのは本人の「はい」の後だけ）。
 
 変更の記録は Git の CHANGELOG.md に従う。

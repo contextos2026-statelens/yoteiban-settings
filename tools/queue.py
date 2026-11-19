@@ -21,7 +21,23 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-DEFAULT_STORE = Path("/home/box/agent-data/yoteiban-state/processing.jsonl")
+def default_store() -> Path:
+    """処理状態ファイルの場所。環境変数または設定の tools から決める。箱の道は直書きしない。"""
+    for name in ("YOTEIBAN_QUEUE", "YRD_QUEUE"):
+        value = os.environ.get(name)
+        if value:
+            return Path(value)
+    settings = os.environ.get("YOTEIBAN_SETTINGS") or os.environ.get("YRD_SETTINGS")
+    if settings:
+        try:
+            tools = json.loads(Path(settings).read_text(encoding="utf-8")).get("tools") or {}
+        except (OSError, json.JSONDecodeError, TypeError, AttributeError):
+            tools = {}
+        if tools.get("queue"):
+            return Path(str(tools["queue"]))
+        if tools.get("state"):
+            return Path(str(tools["state"])) / "processing.jsonl"
+    return Path("processing.jsonl")
 
 # 処理状態（この層だけ）。承認・却下の語は使わない。
 STATUS_RECEIVED = "受信済み"
@@ -587,8 +603,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--file",
-        default=str(DEFAULT_STORE),
-        help="対象ストア（既定: 箱の処理状態ファイル）。検証時は一時ファイルを指定すること",
+        default=None,
+        help="対象ストア。省略時は環境変数 YOTEIBAN_QUEUE / YRD_QUEUE、設定の tools.queue、それも無ければ processing.jsonl。検証時は一時ファイルを指定すること",
     )
     sub = p.add_subparsers(dest="command", required=True)
 
@@ -636,6 +652,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if not args.file:
+        args.file = str(default_store())
     try:
         return args.func(args)
     except QueueError as e:
