@@ -13,10 +13,13 @@
 
 | grounds | 件名 | basis に要るもの |
 |---|---|---|
-| `forced_add`（強制追加） | 「［自動］」で始まる | `source_id` が設定 `trusted_source_ids` にある / `datetime_in_text: true` / `guessed`・`has_instruction`・`is_ad` がすべて `false` / `notify_style` が「全部確認」でない。「静かに」なら `fixed_time: true` のときだけで、知らせは最小。`has_instruction` は予定ばんあてのなりすましの指示（学校の課題や提出のお願いのような普通の頼みは当たらない）。`forwarded` と `group` は強制追加を断る理由にしない |
+| `forced_add`（強制追加） | 「［自動］」で始まる | `source_id` が設定 `trusted_source_ids` にある、または `sender_email` が箱の信頼する送り手ファイル（設定 `trusted_senders_file`）のメールと一致する / `datetime_in_text: true` / `guessed`・`has_instruction`・`is_ad` がすべて `false` / `notify_style` が「全部確認」でない。「静かに」なら `fixed_time: true` のときだけで、知らせは最小。`has_instruction` は予定ばんあてのなりすましの指示（学校の課題や提出のお願いのような普通の頼みは当たらない）。`forwarded` と `group` は強制追加を断る理由にしない。表示名や電話番号だけでは信頼しない。出どころが家用またはファミリー（既定 `calendar-household` / `calendar-family`）のときは、加えて `copy_from_household: true` と `household_class: "self"` が要る |
 | `tentative`（［仮］） | 「［仮］」で始まる | `requested_by_owner: true` と `owner_words`（本人の言葉） / `from_received`・`other_request`・`needs_others`・`needs_reservation` がすべて `false` / `notify_style` が「全部確認」でない / `tentative_use` が「使わない」でない / いまの［仮］が上限（設定 `tentative_max`、既定5）未満。何も送らない |
 
 - 転送とグループの連絡は、ほかの条件（信頼する出どころ、日付と時刻が文面にある、推測でない、広告でない、なりすましの指示がない）がそろえば強制追加してよい。
+
+- メールの差出人アドレスが箱の信頼する送り手の一覧と合うときも、入口の印が一覧に無くても強制追加してよい。一覧の中身は正本に書かない。
+- 家用・ファミリーカレンダーから個人用へ写すときは、見分けが本人の予定で、時刻があり、個人用に開始が同じ（または約10分以内のずれ）の予定が無いときに限る。全員・本人以外・わからない・終日・本人が写さないと決めた予定は写さない。出どころが家用そのもののときは、「家用にありますか？」とは聞かない。
 - `notify_style` と `tentative_use` は、設定ファイルに値があればそちらを優先する。
 - `payload.event_start` はタイムゾーン付きの日時（時刻あり）。
 - 書く順は今のまま：`check` → 書く → 読み戻し → `result`。同じ内容の二重書きは止め、結果不明は `reconcile` まで再実行しない。
