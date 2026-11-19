@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 REQUIRED = {
-    "db_path", "cal_personal_id", "cal_draft_id", "cal_readonly_ids",
+    "db_path", "cal_personal_id", "cal_readonly_ids",
     "reminder_list_id", "reminder_readonly_list_ids", "notion_db_ids",
     "webhook_secret_env", "heartbeat_urls", "backup_public_key_path",
     "backup_target", "ai", "quiet_hours", "morning_max_items", "retention_days",

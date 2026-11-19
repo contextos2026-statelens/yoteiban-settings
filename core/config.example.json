@@ -1,7 +1,6 @@
 {
   "db_path": "<DB_PATH>",
   "cal_personal_id": "<CALENDAR_ID>",
-  "cal_draft_id": "<DRAFT_CALENDAR_ID>",
   "cal_readonly_ids": [
     "<READONLY_CALENDAR_ID>"
   ],

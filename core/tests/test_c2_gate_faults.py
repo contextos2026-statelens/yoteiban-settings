@@ -19,7 +19,7 @@ class GateFaultTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.ledger = Ledger(_os.path.join(self.tmp.name, "faults.sqlite"))
         self.ledger.upsert_case({"case_id": "case-a", "kind": "予定", "title": "テスト", "status": "決まった"}, now=NOW)
-        self.cfg = {"cal_personal_id": "p", "cal_draft_id": "d", "cal_readonly_ids": ["house"],
+        self.cfg = {"cal_personal_id": "p", "cal_readonly_ids": ["house"],
                     "reminder_list_id": "r", "reminder_readonly_list_ids": ["shared"], "notion_db_ids": ["n"]}
 
     def tearDown(self):
@@ -27,7 +27,8 @@ class GateFaultTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def op(self, payload, **kw):
-        return {"kind": "cal_draft", "target_id": "d", "case_id": "case-a", "draft_kind": "候補", "payload": payload, **kw}
+        # 承認の要らない書き先（Notion）で、結果不明・照合の道を確かめる。下書きカレンダーは使わない。
+        return {"kind": "notion", "target_id": "n", "case_id": "case-a", "payload": payload, **kw}
 
     def test_unresolved_result_blocks_a_different_operation_for_same_case_and_kind(self):
         first = check(self.ledger, self.cfg, self.op({"title": "A"}), NOW)
