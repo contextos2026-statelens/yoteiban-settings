@@ -3,7 +3,9 @@ R = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 for p in ("core", "redesign/lib", "redesign/mac", "tools/stage2"): sys.path.insert(0, os.path.join(R, p))
 
 import os as _os
+import json
 import tempfile
+from pathlib import Path
 import unittest
 
 from yoteiban_core.gate import check, close_tentative, payload_hash, reconcile, result
@@ -211,6 +213,45 @@ class GateExceptionTests(unittest.TestCase):
         no_basis = self.forced()
         del no_basis["basis"]
         self.assert_denied(no_basis, why="basis")
+    def test_forced_add_allows_trusted_sender_email(self):
+        senders = Path(self.tmp.name) / "senders.json"
+        senders.write_text(json.dumps({
+            "senders": [{"name": "例", "ids": ["not-an-email", "Sender@example.com", "表示名"]}]
+        }), encoding="utf-8")
+        cfg = dict(self.cfg, trusted_source_ids=["source-school"], trusted_senders_file=str(senders))
+        op = self.forced(basis={"source_id": "source-unknown", "sender_email": " sender@EXAMPLE.com "})
+        out = check(self.ledger, cfg, op, NOW)
+        self.assertTrue(out.get("allow"), out)
+
+    def test_forced_add_denies_display_name_or_unknown_sender(self):
+        senders = Path(self.tmp.name) / "senders.json"
+        senders.write_text(json.dumps({
+            "senders": [{"name": "例", "ids": ["Sender@example.com", "表示名"]}]
+        }), encoding="utf-8")
+        cfg = dict(self.cfg, trusted_senders_file=str(senders))
+        self.assert_denied(self.forced(basis={"source_id": "source-unknown", "sender_email": "表示名"}),
+                           cfg=cfg, why="信頼する出どころ")
+        self.assert_denied(self.forced(basis={"source_id": "source-unknown", "sender_email": "other@example.com"}),
+                           cfg=cfg, why="信頼する出どころ")
+        self.assert_denied(self.forced(basis={"source_id": "source-unknown"}),
+                           cfg=cfg, why="信頼する出どころ")
+
+    def test_forced_add_household_copy_requires_self_class(self):
+        cfg = dict(self.cfg, trusted_source_ids=["source-school", "calendar-household", "calendar-family"])
+        base = {"source_id": "calendar-household", "copy_from_household": True, "household_class": "self"}
+        out = check(self.ledger, cfg, self.forced(case="case-0", title="［自動］自習", basis=base), NOW)
+        self.assertTrue(out.get("allow"), out)
+        self.assert_denied(self.forced(case="case-1", title="［自動］面談",
+                                       basis={"source_id": "calendar-household"}),
+                           cfg=cfg, why="本人の予定の写しだけ")
+        self.assert_denied(self.forced(case="case-2", title="［自動］授業",
+                                       basis={"source_id": "calendar-household",
+                                               "copy_from_household": True, "household_class": "other"}),
+                           cfg=cfg, why="本人の予定だけ")
+        self.assert_denied(self.forced(case="case-3", title="［自動］外食",
+                                       basis={"source_id": "calendar-family",
+                                               "copy_from_household": True, "household_class": "all"}),
+                           cfg=cfg, why="本人の予定だけ")
 
 
 if __name__ == "__main__":

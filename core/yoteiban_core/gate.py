@@ -6,6 +6,7 @@ import hashlib
 import json
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -231,6 +232,73 @@ def _tentative_max(cfg: dict[str, Any]) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else TENTATIVE_MAX_DEFAULT
 
 
+
+HOUSEHOLD_SOURCE_DEFAULT = ("calendar-household", "calendar-family")
+
+
+def _household_source_ids(cfg: dict[str, Any]) -> list[str]:
+    value = cfg.get("household_source_ids")
+    if isinstance(value, list) and value:
+        return [x for x in value if isinstance(x, str) and x]
+    return list(HOUSEHOLD_SOURCE_DEFAULT)
+
+
+def _normalize_email(value: Any) -> str | None:
+    """前後空白を除き小文字にしたメールだけを返す。表示名や電話は対象外。"""
+    if not isinstance(value, str):
+        return None
+    text = value.strip().lower()
+    if " " in text or "@" not in text:
+        return None
+    domain = text.rsplit("@", 1)[-1]
+    if "." not in domain or domain.startswith(".") or domain.endswith("."):
+        return None
+    return text
+
+
+def _trusted_emails(cfg: dict[str, Any]) -> set[str]:
+    """箱の信頼する送り手ファイルから、メールだけを集める。中身は返さず、照合用の集合だけ持つ。"""
+    path = cfg.get("trusted_senders_file")
+    if not isinstance(path, str) or not path:
+        return set()
+    try:
+        with Path(path).open(encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return set()
+    senders = data.get("senders") if isinstance(data, dict) else data
+    if not isinstance(senders, list):
+        return set()
+    found: set[str] = set()
+    for row in senders:
+        if not isinstance(row, dict):
+            continue
+        ids: list[Any] = []
+        for key in ("ids", "emails", "email"):
+            value = row.get(key)
+            if isinstance(value, list):
+                ids.extend(value)
+            elif isinstance(value, str):
+                ids.append(value)
+        for item in ids:
+            email = _normalize_email(item)
+            if email:
+                found.add(email)
+    return found
+
+
+def _source_trusted(cfg: dict[str, Any], basis: dict[str, Any]) -> tuple[bool, str]:
+    trusted = cfg.get("trusted_source_ids")
+    source = basis.get("source_id")
+    if (isinstance(trusted, list) and isinstance(source, str) and source
+            and source in [x for x in trusted if isinstance(x, str)]):
+        return True, ""
+    if _normalize_email(basis.get("sender_email")) in _trusted_emails(cfg):
+        # _normalize_email が None のときは集合に入らない
+        return True, ""
+    return False, "出どころが信頼する出どころに登録されていません"
+
+
 def _exception_check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
     """強制追加・［仮］の根拠を確かめる。1つでも欠けたら通さない。"""
     grounds = op.get("grounds")
@@ -262,11 +330,15 @@ def _exception_check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any]) ->
     if grounds == FORCED_ADD:
         if not isinstance(title, str) or not title.startswith(FORCED_PREFIX):
             return False, "強制追加の件名は「［自動］」で始めます", {}
-        trusted = cfg.get("trusted_source_ids")
-        source = basis.get("source_id")
-        if (not isinstance(trusted, list) or not isinstance(source, str) or not source
-                or source not in [x for x in trusted if isinstance(x, str)]):
-            return False, "出どころが信頼する出どころに登録されていません", {}
+        ok, reason = _source_trusted(cfg, basis)
+        if not ok:
+            return False, reason, {}
+        source = basis.get("source_id") if isinstance(basis.get("source_id"), str) else ""
+        if source in _household_source_ids(cfg):
+            if basis.get("copy_from_household") is not True:
+                return False, "家用・ファミリーからの写しは、本人の予定の写しだけです", {}
+            if basis.get("household_class") != "self":
+                return False, "家用・ファミリーからは、本人の予定だけを写します", {}
         if basis.get("datetime_in_text") is not True:
             return False, "日付と時刻が文面に書かれていません", {}
         for key, reason in (("guessed", "推測した日時は強制追加しません"),
