@@ -91,7 +91,7 @@ class Ledger:
         if not case_id:
             raise SchemaError("case_id が必要です")
         at = _now(now or patch.get("updated_at"))
-        allowed = {"kind", "title", "summary", "cause_input_id", "status", "certainty", "urgency", "due_at", "event_start", "event_end", "next_review_at", "trigger_hint", "resume_note", "owner_role", "created_at", "updated_at", "location", "duration_min", "counterpart", "inferred_fields", "tentative", "reply_by"}
+        allowed = {"kind", "title", "summary", "cause_input_id", "status", "certainty", "urgency", "due_at", "event_start", "event_end", "next_review_at", "trigger_hint", "resume_note", "owner_role", "created_at", "updated_at", "location", "duration_min", "counterpart", "inferred_fields", "tentative", "reply_by", "extra"}
         unknown = set(patch) - (allowed | {"case_id"})
         if unknown:
             raise SchemaError("未対応の項目: " + ", ".join(sorted(unknown)))
@@ -253,7 +253,7 @@ class Ledger:
                 "recv_state": raw.get("recv_state", "受け取り済み"), "read_level": raw.get("read_level"),
                 "retention_until": raw.get("retention_until", retention_until),
             }
-            for key in ("addressed_to", "is_direct", "named", "schedule_related", "mute_state"):
+            for key in ("addressed_to", "is_direct", "named", "schedule_related", "mute_state", "extra"):
                 if key in raw:
                     values[key] = raw[key]
             cols = list(values)
