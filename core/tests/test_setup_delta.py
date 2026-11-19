@@ -125,9 +125,19 @@ class DeltaFixtureTests(unittest.TestCase):
     def test_cli_empty_delta(self):
         from io import StringIO
         from contextlib import redirect_stdout
+
+        catalog = sd.load_catalog()
+        memory = {
+            item["memory_key"]: "架空の回答"
+            for item in sd.questions_up_to(catalog, "1.0.29")
+        }
         buf = StringIO()
         with redirect_stdout(buf):
-            code = sd.main(["--completed-version", "1.0.28", "--current-version", "1.0.29"])
+            code = sd.main([
+                "--completed-version", "1.0.28",
+                "--current-version", "1.0.29",
+                "--memory-json", json.dumps(memory, ensure_ascii=False),
+            ])
         self.assertEqual(code, 0)
         self.assertIn('"pending": []', buf.getvalue())
 
@@ -152,6 +162,41 @@ class Version130Tests(unittest.TestCase):
             ["body_routines", "usage_cap", "heartbeat", "phone_permissions", "family_role"],
         )
         self.assertEqual(sd.questions_added_since(catalog, "1.0.28", "1.0.29"), [])
+
+
+class MissingAnswerTests(unittest.TestCase):
+    def test_old_setup_checks_missing_baseline_answers(self):
+        catalog = sd.load_catalog()
+        report = sd.build_report(
+            catalog,
+            "1.0.20",
+            "1.0.32",
+            {"呼び名": "架空の呼び名", "夜の通知": "仮（未回答）"},
+            connected={"reminders"},
+        )
+        self.assertIn("calendar", report["pending"])
+        self.assertNotIn("nickname", report["pending"])
+        self.assertNotIn("night_notify", report["pending"])
+        self.assertNotIn("reminders", report["pending"])
+        self.assertLess(report["pending"].index("calendar"), report["pending"].index("body_routines"))
+
+    def test_same_or_newer_completed_version_still_checks_missing_answers(self):
+        catalog = sd.load_catalog()
+        report = sd.build_report(catalog, "1.0.32", "1.0.32", {})
+        self.assertEqual(report["added"], [])
+        self.assertIn("nickname", report["pending"])
+
+        future = sd.build_report(catalog, "1.0.33", "1.0.32", {})
+        self.assertIn("nickname", future["pending"])
+
+    def test_no_pending_when_all_current_questions_are_answered(self):
+        catalog = sd.load_catalog()
+        memory = {
+            item["memory_key"]: "架空の回答"
+            for item in sd.questions_up_to(catalog, "1.0.32")
+        }
+        report = sd.build_report(catalog, "1.0.32", "1.0.32", memory)
+        self.assertEqual(report["pending"], [])
 
 
 class PrepareItemsTests(unittest.TestCase):

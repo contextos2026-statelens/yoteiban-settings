@@ -1,5 +1,5 @@
 {
-  "comment": "版ごとの足した質問の一覧。個人の値は置かない。質問の全文は skills/setup/SKILL.md。追加設定では、記憶の「完了した設定の版」より後、今の VERSION 以下に added_in がある質問だけを聞く。基準の版（baseline_version）以前の質問は初回設定の分で、追加設定では繰り返さない。",
+  "comment": "版ごとの質問一覧。個人の値は置かない。質問の全文は skills/setup/SKILL.md。アップデートのたびに added_in が今の VERSION 以下の全質問と記憶の設定を照らし合わせ、答えがない項目だけを追加で聞く。完了した設定の版より後に added_in がある質問は、先に聞く順番の目安。連携済みと「仮（未回答）」は pending に含めない。",
   "baseline_version": "1.0.28",
   "releases": [
     {
