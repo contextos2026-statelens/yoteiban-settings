@@ -91,7 +91,7 @@ class Ledger:
         if not case_id:
             raise SchemaError("case_id が必要です")
         at = _now(now or patch.get("updated_at"))
-        allowed = {"kind", "title", "summary", "cause_input_id", "status", "certainty", "urgency", "due_at", "event_start", "event_end", "next_review_at", "trigger_hint", "resume_note", "owner_role", "created_at", "updated_at"}
+        allowed = {"kind", "title", "summary", "cause_input_id", "status", "certainty", "urgency", "due_at", "event_start", "event_end", "next_review_at", "trigger_hint", "resume_note", "owner_role", "created_at", "updated_at", "location", "duration_min", "counterpart", "inferred_fields", "tentative", "reply_by"}
         unknown = set(patch) - (allowed | {"case_id"})
         if unknown:
             raise SchemaError("未対応の項目: " + ", ".join(sorted(unknown)))
@@ -253,6 +253,9 @@ class Ledger:
                 "recv_state": raw.get("recv_state", "受け取り済み"), "read_level": raw.get("read_level"),
                 "retention_until": raw.get("retention_until", retention_until),
             }
+            for key in ("addressed_to", "is_direct", "named", "schedule_related", "mute_state"):
+                if key in raw:
+                    values[key] = raw[key]
             cols = list(values)
             self.conn.execute(f"INSERT INTO raw_inputs({','.join(cols)}) VALUES({','.join('?' for _ in cols)})", [values[k] for k in cols])
             self._record_history("input:"+input_id, {"raw_input": {"before": None, "after": {"input_id": input_id, "source": source, "recv_state": values['recv_state']}}}, "入力を受け取り", now or received_at)
@@ -273,7 +276,7 @@ class Ledger:
                 if not isinstance(item, dict) or not isinstance(item.get("kind"), str) or not isinstance(item.get("title"), str):
                     raise SchemaError("item には kind と title が必要です")
                 case_id = self._digest(f"{input_id}|{index}")[:24]
-                patch = {k: item.get(k) for k in ("kind", "title", "summary", "event_start", "event_end", "due_at", "certainty", "urgency") if item.get(k) is not None}
+                patch = {k: item.get(k) for k in ("kind", "title", "summary", "event_start", "event_end", "due_at", "certainty", "urgency", "location", "duration_min", "counterpart", "inferred_fields", "tentative", "reply_by") if item.get(k) is not None}
                 patch.update(case_id=case_id, cause_input_id=input_id, status="未確定", created_at=at, updated_at=at)
                 current = self.get_case(case_id)
                 self.upsert_case(patch, expected_version=current["version"] if current else None, actor="ボット", reason="入力を読み取り", basis=input_id, now=at)
