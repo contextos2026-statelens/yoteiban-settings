@@ -1,6 +1,7 @@
 """旧casebookとNotion書き出しからの重複しない移し替え。"""
 from __future__ import annotations
 
+from .refs import normalize_native_ref
 import hashlib
 import json
 import re
@@ -101,7 +102,8 @@ def _iso(value):
 
 
 def _digest_input(source, native_ref):
-    return hashlib.sha256(f"{source}|{native_ref}".encode("utf-8")).hexdigest()[:24]
+    ref = normalize_native_ref(source, native_ref) or native_ref
+    return hashlib.sha256(f"{source}|{ref}".encode("utf-8")).hexdigest()[:24]
 
 
 def _result(imported, skipped, unmapped, **extra):

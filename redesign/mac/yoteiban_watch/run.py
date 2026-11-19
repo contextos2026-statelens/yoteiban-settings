@@ -100,6 +100,16 @@ def clock_once(cfg: dict, store: Store, now: datetime | None = None, fetch=None,
     return sent
 
 
+def _imessage_rowid(item) -> int:
+    extra = getattr(item, "extra", None) or {}
+    if extra.get("rowid") is not None:
+        return int(extra["rowid"])
+    native = str(getattr(item, "native_id", "") or "")
+    if native.casefold().startswith("rowid:"):
+        return int(native.split(":", 1)[1])
+    return int(native)
+
+
 def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_fn=wake) -> dict:
     stats = {"read": 0, "new": 0, WAKE: 0, MORNING: 0, NONE: 0, "unreadable": []}
     src = cfg["sources"]
@@ -108,7 +118,7 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
         cur = int(store.cursor("imessage") or src["imessage"].get("start_rowid", 0))
         try:
             items = read_imessage(src["imessage"]["db_path"], cur)
-            batches.append(("imessage", items, str(max([int(i.native_id) for i in items], default=cur))))
+            batches.append(("imessage", items, str(max((_imessage_rowid(i) for i in items), default=cur))))
             stats.setdefault("read_ok", []).append("imessage")
         except SourceError as e:
             stats["unreadable"].append(("imessage", str(e)))

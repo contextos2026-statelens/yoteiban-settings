@@ -13,6 +13,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from .ledger import Ledger
+from .refs import normalize_native_ref
 
 DEFAULT_MAX_BODY_BYTES = 65536
 DEFAULT_MAX_BODY_CHARS = 8000
@@ -139,6 +140,8 @@ def handle(ledger, cfg, headers, body_bytes, now, secret):
 
     source = payload.get("source")
     native_ref = payload.get("native_ref", payload.get("ref"))
+    if isinstance(source, str) and isinstance(native_ref, str):
+        native_ref = normalize_native_ref(source, native_ref)
     received_at = payload.get("received_at")
     body_text = payload.get("body_text", "")
     sender_role = payload.get("sender_role", payload.get("role", "不明"))

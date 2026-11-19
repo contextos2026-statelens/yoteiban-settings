@@ -79,7 +79,7 @@ class Context:
     next_summary: datetime  # 次の朝のまとめの時刻
     quiet_start_hour: int = 22
     quiet_end_hour: int = 7
-    night_setting: str = "urgent_only"  # urgent_only（急ぎだけ夜に知らせる：待てない緊急だけ夜に1回） / safety_only（夜は鳴らさない：夜に鳴るのは(c)だけ）
+    night_setting: str = "urgent_only"  # urgent_only（急ぎだけ夜に知らせる：待てない緊急だけ夜に1回） / safety_only（夜は鳴らさない：夜に鳴るのは(c)だけ） / always（夜も昼と同じに知らせる。夜だからという理由で朝に回さない。(c)は従来どおり即時）
     remind: str = "day_once"  # day_once / none
     notify_type: int = 3  # 第20章の通知の型（1〜6。未設定の既定は3）
     next_delivery: datetime | None = None  # 型2・3の昼の次の配信時刻（無ければ記憶の値で配る）
@@ -132,8 +132,8 @@ def _validate(item: Item, ctx: Context) -> None:
         raise CalcError("次の朝のまとめの時刻が今以前です")
     if ctx.notify_type not in range(1, 7):
         raise CalcError("notify_type は1〜6にしてください")
-    if ctx.night_setting not in ("urgent_only", "safety_only"):
-        raise CalcError("night_setting は urgent_only か safety_only にしてください")
+    if ctx.night_setting not in ("urgent_only", "safety_only", "always"):
+        raise CalcError("night_setting は urgent_only、safety_only、always のどれかにしてください")
     for k in ("travel_min", "prep_min"):
         v = getattr(item, k)
         if v is not None and v < 0:
@@ -278,7 +278,10 @@ def _past(item: Item, ctx: Context, level, deadline, est, assumed, notes) -> Dec
         if ctx.night_setting == "safety_only" or item.night_now is False:
             reasons.append("夜は鳴らさない設定（または補正で夜の即時：しない）なので朝のまとめの先頭に回す（第18章）")
             return Decision("過ぎていた", "morning_top", reasons, deadline, est, level=level, assumed=assumed, notes=notes)
-        reasons.append("急ぎだけ夜に知らせる設定なので、夜でも1回（第18章）")
+        if ctx.night_setting == "always":
+            reasons.append("夜も普通に知らせる設定なので、昼と同じく1回（第18章）")
+        else:
+            reasons.append("急ぎだけ夜に知らせる設定なので、夜でも1回（第18章）")
         if not item.registered_source:
             notes.append("信頼する出どころに入れる？を1回聞く（第19章の守り(2)）")
     return Decision("過ぎた予定の急ぎ", "now", reasons, deadline, est, level=level, assumed=assumed, notes=notes)
@@ -290,12 +293,19 @@ def _deliver(tier, from_importance, level, cannot_wait, slack_min, item, ctx, re
     if tier == "朝一番":
         return tier, "morning_top"
     quiet = ctx.is_quiet()
-    # 夜：第19章。urgent_only は「待てない」緊急だけ夜に1回。safety_only は(c)だけで、(c)は上で返している
+    # 夜：第19章。urgent_only は「待てない」緊急だけ夜に1回。safety_only は(c)だけで、(c)は上で返している。
+    # always は夜も昼と同じ知らせ方にする（夜だからという理由で朝に回さない）。
     night_cannot_wait = cannot_wait or (slack_min is not None and slack_min < 120)
+    if quiet and item.night_now is False:
+        reasons.append("補正で「夜の即時：しない」なので朝のまとめの先頭に回す")
+        return "朝一番", "morning_top"
+    if quiet and ctx.night_setting == "always":
+        if item.night_now is True:
+            reasons.append("補正で「夜の即時：する」なので夜でも1回")
+            return tier, "now"
+        reasons.append("夜も普通に知らせる設定なので、昼と同じ知らせ方にする")
+        quiet = False
     if quiet:
-        if ctx.night_setting == "urgent_only" and item.night_now is False:
-            reasons.append("補正で「夜の即時：しない」なので朝のまとめの先頭に回す")
-            return "朝一番", "morning_top"
         if ctx.night_setting == "urgent_only" and item.night_now is True:
             reasons.append("補正で「夜の即時：する」なので夜でも1回")
             return tier, "now"
