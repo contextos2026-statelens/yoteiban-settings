@@ -5,7 +5,7 @@ description: >-
 ---
 予定ばんの重要度と通知
 
-まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd /home/box/agent-data/yoteiban-redesign/lib && python3 -m yoteiban_rd.rules_slice --task notify`（第2・12・16・17・18・19・20・22・27章）。終了コード3なら全文を読んで続ける。版はGitの `VERSION` に従い、本文に版番号は直書きしない。
+まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd "$YOTEIBAN_REDESIGN_LIB" && python3 -m yoteiban_rd.rules_slice --task notify`（第2・12・16・17・18・19・20・22・27章）。終了コード3なら全文を読んで続ける。版はGitの `VERSION` に従い、本文に版番号は直書きしない。
 場面で足す章：当日の出発前の確認 → --add 21.3／他の人との予定調整で返事が無い人の知らせ → --add 24:使わない設定,24:返事を追う,24:返事の読み方,24:送信の状態／入口が読めない → --add 25。
 
 【重要度】
@@ -57,7 +57,7 @@ description: >-
 【朝のまとめの作り方（読む先の一覧を全部読む）】
 1. 記憶の『読む先の一覧』のカレンダーを全部読む（個人用カレンダー、家用カレンダーの primary、ファミリーカレンダー。どれも読むだけ）。読めたか・何件かを1つずつ控える。
 2. 計算係の morning に渡して、今日の予定と「確認してね」を作る：
-   `cd /home/box/agent-data/yoteiban-redesign/lib && echo '<JSON>' | python3 -m yoteiban_rd.cli morning`
+   `cd "$YOTEIBAN_REDESIGN_LIB" && echo '<JSON>' | python3 -m yoteiban_rd.cli morning`
    入力：{"day": "<今日 YYYY-MM-DD>", "sources": [{"key", "label", "role"（personal／household／family）}…（読む先の一覧の全部）], "reads": {key: {"ok": true, "events": [読んだ予定そのまま]} か {"ok": false, "error": "理由"}}, "owner": {記憶の本人の呼ばれ方 self_names・家族ロスター roster・見分けの表 table・例外表 learned}, "weather": [1〜2行], "confirm": [{"text", "source"}], "notices": [予定ではない短い文]}
    返り値の body が本文、cards が本文の後に1つずつ聞く質問カード、coverage が読めたかの記録。家用・ファミリーの本人と全員の予定は今日の予定に入り、本人以外は載らず、わからないは「確認してね」に回る。
 3. coverage.all_ok が false のときは、「予定なし」「今日の知らせはありません」と書かない（道具も書かない）。読めなかったカレンダーは「〇〇は未確認」と「確認してね」に出る。

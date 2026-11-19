@@ -68,3 +68,76 @@ class NoStorePaths(unittest.TestCase):
                 if found:
                     bad.append(os.path.relpath(p, ROOT))
         self.assertEqual(bad, [])
+
+REPO_ROOT = os.path.dirname(ROOT)
+
+
+def repo_files():
+    skip_dirs = SKIP_DIRS | {".venv", "node_modules"}
+    skip_files = set(SKIP_FILES)
+    for d, ds, fs in os.walk(REPO_ROOT):
+        ds[:] = [x for x in ds if x not in skip_dirs and not x.startswith(".")]
+        for f in fs:
+            if f in skip_files or f.startswith(".") or f.endswith((".pyc", ".jsonl", ".db")):
+                continue
+            yield os.path.join(d, f)
+
+
+class NoPrivateOrMachinePaths(unittest.TestCase):
+    """家族のボットの固有名、箱の絶対パス、箱以外のホームパス、実在しそうなカレンダーIDが Git に戻らないことを見張る。
+    試験用の example ドメイン・プレースホルダ・/Users/example は残す。"""
+
+    def _read(self, path):
+        return open(path, encoding="utf-8", errors="replace").read()
+
+    def test_no_family_bot_proper_name(self):
+        name = "伝書" + "鳩"
+        bad = []
+        for p in repo_files():
+            if os.path.abspath(p) == os.path.abspath(__file__):
+                continue
+            if name in self._read(p):
+                bad.append(os.path.relpath(p, REPO_ROOT))
+        self.assertEqual(bad, [])
+
+    def test_no_box_data_absolute_path(self):
+        needle = "/home/box/" + "agent-data"
+        bad = []
+        for p in repo_files():
+            if os.path.abspath(p) == os.path.abspath(__file__):
+                continue
+            if needle in self._read(p):
+                bad.append(os.path.relpath(p, REPO_ROOT))
+        self.assertEqual(bad, [])
+
+    def test_no_foreign_home_paths(self):
+        users = re.compile(r"/Users/([A-Za-z0-9._-]+)")
+        homes = re.compile(r"/home/([A-Za-z0-9._-]+)")
+        allow_users = {"example", "user"}
+        allow_homes = {"box"}
+        bad = []
+        for p in repo_files():
+            if os.path.abspath(p) == os.path.abspath(__file__):
+                continue
+            text = self._read(p)
+            for m in users.finditer(text):
+                if m.group(1) in allow_users:
+                    continue
+                bad.append((os.path.relpath(p, REPO_ROOT), "Users", m.group(0)[:40]))
+            for m in homes.finditer(text):
+                if m.group(1) in allow_homes:
+                    continue
+                bad.append((os.path.relpath(p, REPO_ROOT), "home", m.group(0)[:40]))
+        self.assertEqual(bad, [])
+
+    def test_no_real_looking_calendar_ids(self):
+        cal = re.compile(r"(?<![<\w.-])[A-Za-z0-9._%+-]+@(?:group\.)?calendar\.google\.com")
+        bad = []
+        for p in repo_files():
+            if os.path.abspath(p) == os.path.abspath(__file__):
+                continue
+            text = self._read(p)
+            text = re.sub(r"[A-Za-z0-9._%+-]+@example\.(?:com|test)", "", text, flags=re.I)
+            for m in cal.finditer(text):
+                bad.append((os.path.relpath(p, REPO_ROOT), m.group(0)[:40]))
+        self.assertEqual(bad, [])

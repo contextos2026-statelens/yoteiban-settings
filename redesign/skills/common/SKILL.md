@@ -5,7 +5,7 @@ description: >-
 ---
 予定ばんの運用ルール（共通の約束）
 
-正本は1つだけ。Git の `rules/seihon.md` が正で、箱の写しは `/home/box/agent-data/yoteiban-rules/seihon.md`。版はGitの `VERSION` に従い、本文に版番号は直書きしない。このスキルに正本の本文は写さない。個人の値（呼び名、カレンダーID、入口の住所、鍵、URL）は、このスキルに書かず、記憶と箱の設定から読む。
+正本は1つだけ。Git の `rules/seihon.md` が正で、箱の写しは設定の `tools.seihon` または環境変数 `YOTEIBAN_SEIHON`（同じ値を `YRD_SEIHON` でも可）から読む。版はGitの `VERSION` に従い、本文に版番号は直書きしない。このスキルに正本の本文は写さない。個人の値（呼び名、カレンダーID、入口の住所、鍵、URL）は、このスキルに書かず、記憶と箱の設定から読む。
 
 この版では、正本を毎回全文は読まない。仕事に要る章だけを切り出して読む。ただし、下の【本人が待っているとき】本人が返事を待っている対話（質問への答え・要望・チャットの頼み・口頭の「定期確認と同じことをして」・他の人への調整文の相談など）は、先に「予定ばんの対話の早道」を読み、その手順で返す（単発で簡単なら30秒前後、1つの調整は1〜3分、最大5分）。
 
@@ -15,8 +15,8 @@ description: >-
 1. 予定ばんの役割と本人固有の値（呼び名・カレンダー・読む先の一覧・通知の型・夜の通知など）は記憶から読む（第1章・第27章）。記憶に「初回設定済み」の印が無ければ、先に「予定ばんの初回設定」を始める。
 2. 仕事の種類を決め、下の地図のスキルを読む。1件に仕事が2つ以上あるときは、両方のスキルを読む。どれを読むか迷うときは、全部読む。
 3. その仕事の章を切り出して読む（スキルに「--add」とある場面に当たれば、その章も足す）：
-   `cd /home/box/agent-data/yoteiban-redesign/lib && python3 -m yoteiban_rd.rules_slice --task <仕事> --add <足す章>`
-4. 終了コードが3のときは、切り出せなかったので正本の全文が出ている。全文を読んで今までどおり続け、本人に1行で報告する（「正本の見出しか道具の置き場が変わったようです」）。道具が動かない（終了コード2・コマンドが無い）ときも、正本の全文 `/home/box/agent-data/yoteiban-rules/seihon.md` を読んで続け、1行で報告する。切り出しで足りるか迷うときも、全文を読む。止めない。
+   `cd "$YOTEIBAN_REDESIGN_LIB" && python3 -m yoteiban_rd.rules_slice --task <仕事> --add <足す章>`
+4. 終了コードが3のときは、切り出せなかったので正本の全文が出ている。全文を読んで今までどおり続け、本人に1行で報告する（「正本の見出しか道具の置き場が変わったようです」）。道具が動かない（終了コード2・コマンドが無い）ときも、正本の全文（`$YOTEIBAN_SEIHON`。空なら Git の `rules/seihon.md`）を読んで続け、1行で報告する。環境変数や設定が空のときは、リポジトリの `redesign/lib` と `rules/seihon.md` を試し、それも駄目なら全文を読んで続ける。切り出しで足りるか迷うときも、全文を読む。止めない。
 5. 「予定ばんの自己試験」だけは、切り出さず正本の全文を読む。
 
 【v2.3の分担（運用の正は台帳。どの仕事でも同じ）】
@@ -84,13 +84,13 @@ description: >-
 
 【道具（箱。計算・記録・判定だけで、これ自体はカレンダーにも送信にも正本にも触れない）】
 置き場の正は箱の設定から読む。いまの既定は次のとおり（Git が正。迷ったら本人に1行で報告し、全文を読んで続ける）。
-- 決まりの切り出しと計算係（いままでどおり）：置き場 `/home/box/agent-data/yoteiban-redesign/lib`（Git の `redesign/lib/` の写し）。使う前に迷ったら `cd /home/box/agent-data/yoteiban-redesign/lib && python3 -m yoteiban_rd.selfcheck`。
+- 決まりの切り出しと計算係（いままでどおり）：置き場は設定の `tools.redesign_lib` または環境変数 `YOTEIBAN_REDESIGN_LIB`（`YRD_REDESIGN_LIB` でも可。Git の `redesign/lib/` の写し）。使う前に迷ったら `cd "$YOTEIBAN_REDESIGN_LIB" && python3 -m yoteiban_rd.selfcheck`。
   - 正本の章の切り出し：`python3 -m yoteiban_rd.rules_slice --task <仕事> --add <章>`
   - 計算係：`python3 -m yoteiban_rd.cli <仕事>`（JSON を標準入力で渡す）。urgency・check-write・weekday・coverage・morning・nightly・feedback／hit-rate・diff／snapshot。入力が足りないと終了コード2で足りない項目を返すので、推測で埋めずに直して出し直す。
-- v2.3 の核：コードは `/home/box/agent-data/yoteiban-v23/repo`（Git の写し。直接書き換えない）。台帳と設定の置き場は箱の設定（`core_config.json`。個人の値あり。鍵と Webhook の値は環境変数か権限600のファイルだけで、チャットにもこのスキルにも書かない）。読み込み先は `PYTHONPATH=…/repo/core:…/repo/redesign/lib`。
+- v2.3 の核：コードは設定の `tools.repo` または環境変数 `YOTEIBAN_REPO`（Git の写し。直接書き換えない）。台帳と設定の置き場は箱の設定（`core_config.json`。個人の値あり。鍵と Webhook の値は環境変数か権限600のファイルだけで、チャットにもこのスキルにも書かない）。読み込み先は `PYTHONPATH="$YOTEIBAN_REPO/core:$YOTEIBAN_REPO/redesign/lib"`。
   - 受け口：`python3 -m yoteiban_core.intake --config <設定>`
   - 関所・先読み・束ね・夜間監査・控え・移し替えは、それぞれ `yoteiban_core` の gate・lookahead・bundle・audit・backup・importer。移し替えの空実行は `dry_run` だけ（本番の台帳には書かない）。
-- 処理状態の記録（段階1）：`/home/box/agent-data/yoteiban-tools/queue.py`（使い方は「予定ばんの受け取りと振り分け」）。新しい案件の正は台帳。
+- 処理状態の記録（段階1）：`python3 "$YOTEIBAN_TOOLS/queue.py"`（`YOTEIBAN_TOOLS` / `YRD_TOOLS` または設定の `tools.tools_dir`。使い方は「予定ばんの受け取りと振り分け」）。新しい案件の正は台帳。
 
 【書き込みの順（カレンダー・リマインダー・Notion・メールで書くとき。どの仕事でも同じ）】
 1. 関所の判定（承認の有無、書く先のID、例外の条件）。通らなければ書かない。

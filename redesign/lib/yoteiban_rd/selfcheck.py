@@ -7,12 +7,13 @@ import json
 import os
 from pathlib import Path
 
-from .rules_slice import DEFAULT_SEIHON, TASK_CHAPTERS, slice_for
+from .rules_slice import TASK_CHAPTERS, slice_for
+from .tool_paths import resolve_lib_home, resolve_seihon
 
-LIB_HOME = "/home/box/agent-data/yoteiban-redesign/lib"
 
-
-def check(seihon: str = DEFAULT_SEIHON, lib_home: str = LIB_HOME) -> dict:
+def check(seihon: str | None = None, lib_home: str | None = None) -> dict:
+    seihon = seihon or resolve_seihon()
+    lib_home = lib_home or resolve_lib_home()
     problems = []
     here = str(Path(__file__).resolve().parent.parent)
     if os.path.realpath(here) != os.path.realpath(lib_home):
@@ -37,8 +38,8 @@ def check(seihon: str = DEFAULT_SEIHON, lib_home: str = LIB_HOME) -> dict:
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--seihon", default=DEFAULT_SEIHON)
-    p.add_argument("--lib-home", default=LIB_HOME)
+    p.add_argument("--seihon", default=None, help="正本の道。省略時は環境変数・設定・リポジトリの既定")
+    p.add_argument("--lib-home", default=None, help="計算係の置き場。省略時は環境変数・設定・このパッケージ")
     a = p.parse_args(argv)
     r = check(a.seihon, a.lib_home)
     print(json.dumps(r, ensure_ascii=False, indent=1))

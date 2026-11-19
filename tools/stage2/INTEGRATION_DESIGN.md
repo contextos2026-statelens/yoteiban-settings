@@ -157,9 +157,9 @@
 - `--file` 必須の安全設計を維持する。`casebook.py`／`delegation.py` に既定パスを足さない。
 - `queue.py` は既定パスを持つが、配線では**常に `--file` を明示**し、既定に頼らない。
 - 本番パスは適用時に決める。案：
-  - `/home/box/agent-data/yoteiban-state/processing.jsonl`（queue）
-  - `/home/box/agent-data/yoteiban-state/casebook.json`
-  - `/home/box/agent-data/yoteiban-state/delegation.json`
+  - `$YOTEIBAN_STATE/processing.jsonl`（queue。設定の tools.queue でも可）
+  - `$YOTEIBAN_STATE/casebook.json`
+  - `$YOTEIBAN_STATE/delegation.json`
   - 受信口を置く場合の受信記録：同ディレクトリ配下の別ファイル
   （このディレクトリは現時点で存在しない。作成も適用時の承認後）
 - **一括移行はしない**。既存の記録（作業記録、表の行、Mac側の依頼記録ファイル）は新ストアへ写さない。新ストアは適用日以降の入力からだけ始める。
@@ -218,7 +218,7 @@
 
 ## 9. 未決事項・本人判断待ち
 
-1. **本番ストアのパス**（案：`/home/box/agent-data/yoteiban-state/` 配下）。
+1. **本番ストアのパス**（案：設定の `tools.state` または環境変数 `YOTEIBAN_STATE` 配下。Git には箱の絶対パスを書かない）。
 2. **受信口の実装方式**（案A 箱側取り込み／案B Mac上の独立リスナー／案C 既存転送の受け手側記録）。
 3. **段階の切り分け**（3段階でよいか、段階1の期間、段階ごとの合格基準の数字）。
 4. **処理状態の正**：`queue.py` を正とし `casebook.py` は写しにする案でよいか。将来どちらかに一本化するか。

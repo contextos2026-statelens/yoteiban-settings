@@ -5,7 +5,7 @@ description: >-
 ---
 予定ばんの委任送信（再設計版。本人の別の承認があるまで本番では使わない）
 
-まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd /home/box/agent-data/yoteiban-redesign/lib && python3 -m yoteiban_rd.rules_slice --task delegate`（第2・4・11・29・30章）。終了コード3なら全文を読んで続ける。
+まず「予定ばんの運用ルール」を読み、正本の章を切り出して読む：`cd "$YOTEIBAN_REDESIGN_LIB" && python3 -m yoteiban_rd.rules_slice --task delegate`（第2・4・11・29・30章）。終了コード3なら全文を読んで続ける。
 
 1. 委任があるかを確かめる（相手・内容の範囲・期間・送信の許可。どれか欠けたら送らない）。委任の登録は本人の承認の後だけ。
 2. 文案を作る：send_flow の prepare（delegation.py の draft）。本人に文面をそのまま見せ、質問カードで「送る／直す／やめる」を聞く。確認の省略はしない。
