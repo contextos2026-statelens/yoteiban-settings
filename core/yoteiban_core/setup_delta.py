@@ -105,6 +105,16 @@ def questions_added_since(
     return added
 
 
+def questions_up_to(catalog: dict, current: str) -> list[dict]:
+    """Return every catalog question whose added_in is no later than current."""
+    parse_version(current)
+    return [
+        item
+        for item in catalog["questions"]
+        if version_less_or_equal(item["added_in"], current)
+    ]
+
+
 def is_tentative(value: object) -> bool:
     return isinstance(value, str) and TENTATIVE_MARK in value
 
@@ -188,7 +198,12 @@ def build_report(
     connected: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> dict:
     added = questions_added_since(catalog, completed, current)
-    pending = pending_questions(added, memory, connected)
+    all_current_questions = questions_up_to(catalog, current)
+    pending = pending_questions(all_current_questions, memory, connected)
+    added_ids = {item["id"] for item in added}
+    pending = [item for item in pending if item["id"] in added_ids] + [
+        item for item in pending if item["id"] not in added_ids
+    ]
     return {
         "completed_version": resolved_completed_version(catalog, completed),
         "current_version": current,
