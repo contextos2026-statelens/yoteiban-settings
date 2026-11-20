@@ -41,6 +41,13 @@ class ExpressTests(unittest.TestCase):
         banned = ("大特急", "特急", "急いで", "至急", "大至急", "緊急", "!!", "‼", "🔴")
         self.assertFalse([word for word in banned if word in line])
 
+    def test_four_skill_copies_match_canonical_files(self):
+        for name in ("chat", "common", "notify", "selftest"):
+            with self.subTest(skill=name):
+                canonical = (ROOT / "skills" / name / "SKILL.md").read_bytes()
+                copy = (ROOT / "redesign" / "skills" / name / "SKILL.md").read_bytes()
+                self.assertEqual(copy, canonical)
+
     def test_canonical_morning_rules_match_notify_skill(self):
         canonical = (ROOT / "rules/seihon.md").read_text(encoding="utf-8")
         skill = (ROOT / "skills/notify/SKILL.md").read_text(encoding="utf-8")
