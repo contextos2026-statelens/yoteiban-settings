@@ -24,6 +24,13 @@
         "route_link_preferences"
       ],
       "note": "経路リンクの地図の選択と、電車で時刻指定するときの予備リンクを聞く。"
+    },
+    {
+      "version": "1.0.38",
+      "added_question_ids": [
+        "departure_notice"
+      ],
+      "note": "決まった移動の出発リマインダーを置くかと、使う専用リストを初回・追加設定で確認する。"
     }
   ],
   "questions": [
@@ -366,6 +373,23 @@
         "経路リンク設定"
       ],
       "unavailable_if_declined": "リンクを作らず、移動経路は従来どおり確認できる方法で案内する。"
+    },
+    {
+      "id": "departure_notice",
+      "added_in": "1.0.38",
+      "title": "出発の知らせ",
+      "memory_key": "出発の知らせ設定",
+      "answer_keys": [
+        "move_reminder_list",
+        "departure_notice"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "25",
+      "default": "reminder",
+      "aliases": [
+        "出発リマインダーの設定"
+      ],
+      "unavailable_if_declined": "出発の時刻の自動リマインダーは置かない。予定の案内は従来の通知で確認する。"
     }
   ]
 }

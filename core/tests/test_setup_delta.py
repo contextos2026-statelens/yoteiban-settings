@@ -210,6 +210,17 @@ class MissingAnswerTests(unittest.TestCase):
         self.assertEqual(report["pending"], [])
 
 
+class DepartureSetupQuestionTests(unittest.TestCase):
+    def test_departure_question_is_pending_until_both_settings_are_answered(self):
+        catalog = sd.load_catalog()
+        item = next(q for q in catalog["questions"] if q["id"] == "departure_notice")
+        self.assertEqual(item["answer_keys"], ["move_reminder_list", "departure_notice"])
+        self.assertEqual(sd.pending_questions([item], {"move_reminder_list": "架空のリスト"}), [item])
+        self.assertEqual(sd.pending_questions([item], {
+            "move_reminder_list": "架空のリスト", "departure_notice": "reminder"
+        }), [])
+
+
 class AliasAnswerTests(unittest.TestCase):
     def test_alias_answer_is_treated_as_answered(self):
         question = {
