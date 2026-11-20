@@ -222,6 +222,149 @@ class Ledger:
             self.conn.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, _json(value)))
             self.conn.execute("INSERT INTO history(h_id,case_id,at,actor,change,reason,basis) VALUES(?,?,?,?,?,?,?)", (secrets.token_hex(12), "setting:"+key, at, actor, _json({"setting": {"before": before, "after": value}}), "設定を更新", ""))
 
+    def record_movement_signal(self, short_number, signal_type, received_at, now=None):
+        """Store only the linked case, departure/arrival kind, and time; never a place."""
+        if not isinstance(short_number, str) or not short_number.isdigit() or not 1 <= len(short_number) <= 6:
+            return {"ok": False, "reason": "案件番号が正しくありません"}
+        if signal_type not in {"出発", "到着"}:
+            return {"ok": False, "reason": "合図の種類が正しくありません"}
+        try:
+            parsed = datetime.fromisoformat(str(received_at).replace("Z", "+00:00"))
+        except ValueError:
+            return {"ok": False, "reason": "合図の時刻が正しくありません"}
+        if parsed.tzinfo is None:
+            return {"ok": False, "reason": "合図の時刻に時差がありません"}
+        candidates = []
+        for row in self.conn.execute("SELECT case_id,extra,status FROM cases"):
+            try:
+                extra = json.loads(row["extra"] or "{}")
+            except (TypeError, ValueError):
+                continue
+            if isinstance(extra, dict) and extra.get("movement") is True and str(extra.get("short_number")) == short_number:
+                candidates.append((row["case_id"], extra))
+        if len(candidates) != 1:
+            return {"ok": False, "reason": "案件番号に一致する移動予定を一意に確認できません"}
+        case_id, extra = candidates[0]
+        owned_reminder = any(
+            op.get("kind") == "reminder" and op.get("case_id") == case_id
+            and op.get("state") == "成功（読み戻し済み）"
+            and isinstance(op.get("result"), dict)
+            and op["result"].get("grounds") == "move_watch"
+            and op["result"].get("signal_type") == signal_type
+            and isinstance(op["result"].get("reminder_id"), str)
+            and not any(op["result"].get(k) for k in ("deleted_at", "completed_at", "replaced_by_op_id"))
+            for op in self.list_ops()
+        )
+        if not owned_reminder:
+            return {"ok": False, "reason": "予定ばんが作った有効な場所リマインダーがありません"}
+        at = now or parsed.isoformat()
+        with self.tx():
+            old = self.conn.execute("SELECT extra,version FROM cases WHERE case_id=?", (case_id,)).fetchone()
+            if old is None:
+                return {"ok": False, "reason": "移動予定がありません"}
+            latest = json.loads(old["extra"] or "{}")
+            move = latest.get("move_status") if isinstance(latest.get("move_status"), dict) else {}
+            signals = list(move.get("signals", [])) if isinstance(move.get("signals", []), list) else []
+            signal = {"type": signal_type, "at": parsed.isoformat()}
+            if signal in signals:
+                return {"ok": True, "created": False, "case_id": case_id, "status": move.get("status")}
+            signals.append(signal)
+            signals = signals[-100:]
+            state = "到着済み" if signal_type == "到着" else "出発済み"
+            latest["move_status"] = {"status": state, "signals": signals}
+            updated_at = at
+            self.conn.execute("UPDATE cases SET extra=?,version=version+1,updated_at=? WHERE case_id=?",
+                              (_json(latest), updated_at, case_id))
+            self._record_history(case_id, {"move_status": {"before": move.get("status"),
+                                    "after": {"status": state, "signal": signal_type, "at": parsed.isoformat()}}},
+                                 "移動の合図を記録", updated_at)
+        return {"ok": True, "created": True, "case_id": case_id, "status": state}
+
+    def record_movement_evaluation(self, case_id, evaluation, now=None, cover_proposed=False):
+        """Persist time/status calibration only; never accept location or free-form text."""
+        if not isinstance(evaluation, dict) or not isinstance(case_id, str):
+            return {"ok": False, "reason": "判定の形が正しくありません"}
+        allowed = {"status", "departure_late_min", "arrival_check", "estimated_arrival",
+                   "monitoring_started_at", "observation_only", "record_only",
+                   "propose_adjustment_and_cover", "calibration"}
+        if set(evaluation) - allowed:
+            return {"ok": False, "reason": "判定に保存できない項目があります"}
+        case = self.get_case(case_id)
+        if not case:
+            return {"ok": False, "reason": "移動予定がありません"}
+        try:
+            extra = json.loads(case.get("extra") or "{}")
+        except (TypeError, ValueError):
+            return {"ok": False, "reason": "移動予定の記録を読めません"}
+        if not isinstance(extra, dict) or extra.get("movement") is not True:
+            return {"ok": False, "reason": "台帳で移動予定と確認できません"}
+        calibration = evaluation.get("calibration")
+        if not isinstance(calibration, dict) or set(calibration) - {
+                "planned_departure", "actual_departure", "actual_arrival", "predicted_arrival",
+                "next_event_start", "arrival_check"}:
+            return {"ok": False, "reason": "校正記録の形が正しくありません"}
+        if evaluation.get("status") not in {"出発前", "出発済み", "到着済み", "出発遅れ", "予定失敗"}:
+            return {"ok": False, "reason": "進み具合の値が正しくありません"}
+        if evaluation.get("arrival_check") not in {"未確認", "間に合う", "間に合わない", "予定失敗"}:
+            return {"ok": False, "reason": "到着見込みの値が正しくありません"}
+        late = evaluation.get("departure_late_min")
+        if isinstance(late, bool) or not isinstance(late, int) or late < 0:
+            return {"ok": False, "reason": "出発遅れの分数が正しくありません"}
+        for key in ("planned_departure", "actual_departure", "actual_arrival", "predicted_arrival", "next_event_start"):
+            value = calibration.get(key)
+            if value is not None:
+                try:
+                    parsed = datetime.fromisoformat(value)
+                except (TypeError, ValueError):
+                    return {"ok": False, "reason": "時刻の校正値が正しくありません"}
+                if parsed.tzinfo is None:
+                    return {"ok": False, "reason": "時刻の校正値に時差がありません"}
+        if calibration.get("arrival_check") not in {"未確認", "間に合う", "間に合わない", "予定失敗"}:
+            return {"ok": False, "reason": "校正結果が正しくありません"}
+        at = now or datetime.now().astimezone().isoformat()
+        move = extra.get("move_status") if isinstance(extra.get("move_status"), dict) else {}
+        checks = list(move.get("checks", [])) if isinstance(move.get("checks", []), list) else []
+        prior_cover = bool(move.get("cover_proposed_at"))
+        record = {"at": at, "status": evaluation.get("status"),
+                  "departure_late_min": evaluation.get("departure_late_min"),
+                  "arrival_check": evaluation.get("arrival_check"), "calibration": calibration}
+        checks.append(record)
+        move["checks"] = checks[-100:]
+        if cover_proposed and evaluation.get("propose_adjustment_and_cover") and not prior_cover:
+            move["cover_proposed_at"] = at
+        move["status"] = evaluation.get("status")
+        extra["move_status"] = move
+        with self.tx():
+            old = self.conn.execute("SELECT version FROM cases WHERE case_id=?", (case_id,)).fetchone()
+            if old is None:
+                return {"ok": False, "reason": "移動予定がありません"}
+            self.conn.execute("UPDATE cases SET extra=?,version=version+1,updated_at=? WHERE case_id=?",
+                              (_json(extra), at, case_id))
+            self._record_history(case_id, {"move_evaluation": {"status": evaluation.get("status"),
+                                    "departure_late_min": evaluation.get("departure_late_min"),
+                                    "arrival_check": evaluation.get("arrival_check"), "at": at}},
+                                 "移動の進み具合を記録", at)
+        return {"ok": True, "cover_already_proposed": bool(move.get("cover_proposed_at")),
+                "checks": len(move["checks"])}
+
+    def movement_calibration(self, case_id):
+        case = self.get_case(case_id)
+        if not case:
+            return {"ok": False, "reason": "移動予定がありません"}
+        try:
+            extra = json.loads(case.get("extra") or "{}")
+        except (TypeError, ValueError):
+            return {"ok": False, "reason": "移動予定の記録を読めません"}
+        move = extra.get("move_status", {}) if isinstance(extra, dict) else {}
+        checks = move.get("checks", []) if isinstance(move, dict) else []
+        if not isinstance(checks, list):
+            checks = []
+        return {"ok": True, "checks": len(checks),
+                "late_departures": sum((x.get("departure_late_min") or 0) > 0 for x in checks if isinstance(x, dict)),
+                "forecast_misses": sum(x.get("arrival_check") in {"間に合わない", "予定失敗"}
+                                        for x in checks if isinstance(x, dict)),
+                "cover_proposed": bool(move.get("cover_proposed_at")) if isinstance(move, dict) else False}
+
     @staticmethod
     def _digest(text):
         return hashlib.sha256(text.encode("utf-8")).hexdigest()

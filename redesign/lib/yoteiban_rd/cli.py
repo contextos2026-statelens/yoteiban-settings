@@ -17,6 +17,7 @@ from .morning import Source, build_morning, coverage
 from .quick import diff as quick_diff, snapshot as quick_snapshot
 from .latency import judge as latency_judge
 from .route_links import build_route_links
+from .move_watch import build_location_reminders, evaluate_move_status
 
 
 def _ev(d: dict) -> Event:
@@ -184,6 +185,16 @@ def cmd_departure(data: dict) -> dict:
                      data.get("travel_confirmed", True))
 
 
+def cmd_move_watch(data: dict) -> dict:
+    """Location reminder input construction and progress checks; no network or persistence."""
+    task = data.get("task")
+    if task == "build_reminders":
+        return build_location_reminders(data)
+    if task == "status":
+        return evaluate_move_status(data)
+    raise InputError("task は build_reminders か status にしてください")
+
+
 def cmd_snapshot(data: dict) -> dict:
     return quick_snapshot(data["now"], data.get("events", []), data.get("items", []), data.get("cursors"))
 
@@ -200,7 +211,8 @@ COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": c
             "coverage": cmd_coverage, "morning": cmd_morning, "weekday": cmd_weekday,
             "feedback": cmd_feedback, "hit-rate": cmd_hit_rate, "diff": cmd_diff,
             "snapshot": cmd_snapshot, "free": cmd_free,
-            "latency": cmd_latency, "route-links": cmd_route_links, "departure": cmd_departure}
+            "latency": cmd_latency, "route-links": cmd_route_links, "departure": cmd_departure,
+            "move-watch": cmd_move_watch}
 
 
 def main(argv=None) -> int:

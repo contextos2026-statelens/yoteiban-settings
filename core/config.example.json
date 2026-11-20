@@ -60,5 +60,6 @@
   "find_my_device": "",
   "reminder_location_permission": "",
   "reminder_full_disk_access": "",
-  "movement_monitoring": ""
+  "movement_monitoring": "",
+  "movement_monitoring_started_at": ""
 }
