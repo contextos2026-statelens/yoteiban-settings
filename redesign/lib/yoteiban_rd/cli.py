@@ -18,6 +18,9 @@ from .quick import diff as quick_diff, snapshot as quick_snapshot
 from .latency import judge as latency_judge
 from .route_links import build_route_links
 from .move_watch import build_location_reminders, evaluate_move_status
+from .done_check import (plan_points, build_current_departure_reminder, prioritize_reminders,
+                         update_point_progress, mark_point_skipped, evaluate_done_check,
+                         build_end_check_reminder, group_due_checks, cover_plan)
 
 
 def _ev(d: dict) -> Event:
@@ -192,7 +195,30 @@ def cmd_move_watch(data: dict) -> dict:
         return build_location_reminders(data)
     if task == "status":
         return evaluate_move_status(data)
-    raise InputError("task は build_reminders か status にしてください")
+    if task == "plan_points":
+        return plan_points(data)
+    if task == "current_departure":
+        return build_current_departure_reminder(data)
+    if task == "prioritize_reminders":
+        return prioritize_reminders(data.get("events", []), data.get("max_active", 10))
+    if task == "point_progress":
+        return {"points": update_point_progress(data.get("points", []), data["point_number"])}
+    if task == "point_skipped":
+        return {"points": mark_point_skipped(data.get("points", []), data["point_number"])}
+    raise InputError("task は build_reminders／status／plan_points／current_departure／prioritize_reminders／point_progress／point_skipped")
+
+
+def cmd_done_check(data: dict) -> dict:
+    task = data.get("task", "evaluate")
+    if task == "build_reminder":
+        return build_end_check_reminder(data)
+    if task == "evaluate":
+        return evaluate_done_check(data)
+    if task == "group":
+        return {"groups": group_due_checks(data.get("items", []), data.get("minutes", 15))}
+    if task == "cover":
+        return cover_plan(data)
+    raise InputError("task は build_reminder／evaluate／group／cover にしてください")
 
 
 def cmd_snapshot(data: dict) -> dict:
@@ -212,7 +238,7 @@ COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": c
             "feedback": cmd_feedback, "hit-rate": cmd_hit_rate, "diff": cmd_diff,
             "snapshot": cmd_snapshot, "free": cmd_free,
             "latency": cmd_latency, "route-links": cmd_route_links, "departure": cmd_departure,
-            "move-watch": cmd_move_watch}
+            "move-watch": cmd_move_watch, "done-check": cmd_done_check}
 
 
 def main(argv=None) -> int:

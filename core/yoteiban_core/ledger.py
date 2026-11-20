@@ -222,12 +222,54 @@ class Ledger:
             self.conn.execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, _json(value)))
             self.conn.execute("INSERT INTO history(h_id,case_id,at,actor,change,reason,basis) VALUES(?,?,?,?,?,?,?)", (secrets.token_hex(12), "setting:"+key, at, actor, _json({"setting": {"before": before, "after": value}}), "設定を更新", ""))
 
-    def record_movement_signal(self, short_number, signal_type, received_at, now=None):
+    def set_movement_points(self, case_id, points, now=None):
+        """Persist only anonymous point order/type/signal/status metadata."""
+        if not isinstance(points, list) or len(points) > 100:
+            return {"ok": False, "reason": "地点一覧の形が正しくありません"}
+        safe, seen = [], set()
+        allowed_status = {"まだ", "着いた", "済んだ", "飛ばした", "わからない"}
+        for point in points:
+            if not isinstance(point, dict) or set(point) - {"point_number", "kind", "group_number", "has_signal", "status"}:
+                return {"ok": False, "reason": "地点一覧に保存できない情報があります"}
+            number = point.get("point_number")
+            group = point.get("group_number")
+            if (isinstance(number, bool) or not isinstance(number, int) or number < 1 or number in seen
+                    or point.get("kind") not in {"errand", "through"}
+                    or (group is not None and (isinstance(group, bool) or not isinstance(group, int) or group < 1))
+                    or not isinstance(point.get("has_signal"), bool)
+                    or point.get("status") not in allowed_status):
+                return {"ok": False, "reason": "地点の番号・種類・状態が正しくありません"}
+            seen.add(number)
+            safe.append({"point_number": number, "kind": point["kind"], "group_number": group,
+                         "has_signal": point["has_signal"], "status": point["status"]})
+        case = self.get_case(case_id)
+        if not case:
+            return {"ok": False, "reason": "移動予定がありません"}
+        try:
+            extra = json.loads(case.get("extra") or "{}")
+        except (TypeError, ValueError):
+            return {"ok": False, "reason": "移動予定の記録を読めません"}
+        if not isinstance(extra, dict) or extra.get("movement") is not True:
+            return {"ok": False, "reason": "移動予定と確認できません"}
+        move = extra.get("move_status") if isinstance(extra.get("move_status"), dict) else {}
+        move["points"] = safe
+        extra["move_status"] = move
+        at = now or datetime.now().astimezone().isoformat()
+        with self.tx():
+            self.conn.execute("UPDATE cases SET extra=?,version=version+1,updated_at=? WHERE case_id=?",
+                              (_json(extra), at, case_id))
+            self._record_history(case_id, {"move_points": {"count": len(safe), "point_numbers": sorted(seen)}},
+                                 "移動地点を記録", at)
+        return {"ok": True, "points": len(safe)}
+
+    def record_movement_signal(self, short_number, signal_type, received_at, now=None, point_number=None):
         """Store only the linked case, departure/arrival kind, and time; never a place."""
         if not isinstance(short_number, str) or not short_number.isdigit() or not 1 <= len(short_number) <= 6:
             return {"ok": False, "reason": "案件番号が正しくありません"}
         if signal_type not in {"出発", "到着"}:
             return {"ok": False, "reason": "合図の種類が正しくありません"}
+        if point_number is not None and (isinstance(point_number, bool) or not isinstance(point_number, int) or point_number < 1):
+            return {"ok": False, "reason": "地点番号が正しくありません"}
         try:
             parsed = datetime.fromisoformat(str(received_at).replace("Z", "+00:00"))
         except ValueError:
@@ -251,6 +293,7 @@ class Ledger:
             and isinstance(op.get("result"), dict)
             and op["result"].get("grounds") == "move_watch"
             and op["result"].get("signal_type") == signal_type
+            and op["result"].get("point_number") == point_number
             and isinstance(op["result"].get("reminder_id"), str)
             and not any(op["result"].get(k) for k in ("deleted_at", "completed_at", "replaced_by_op_id"))
             for op in self.list_ops()
@@ -266,12 +309,44 @@ class Ledger:
             move = latest.get("move_status") if isinstance(latest.get("move_status"), dict) else {}
             signals = list(move.get("signals", [])) if isinstance(move.get("signals", []), list) else []
             signal = {"type": signal_type, "at": parsed.isoformat()}
+            if point_number is not None:
+                signal["point_number"] = point_number
             if signal in signals:
                 return {"ok": True, "created": False, "case_id": case_id, "status": move.get("status")}
             signals.append(signal)
             signals = signals[-100:]
             state = "到着済み" if signal_type == "到着" else "出発済み"
+            points = move.get("points") if isinstance(move.get("points"), list) else []
+            if signal_type == "到着" and points:
+                point_groups = {p.get("group_number") for p in points if isinstance(p, dict)
+                                and p.get("kind") == "errand" and isinstance(p.get("group_number"), int)}
+                if point_number is None and len(point_groups) > 1:
+                    return {"ok": False, "reason": "複数の用事地点には地点番号が必要です"}
+                matched = [p for p in points if isinstance(p, dict)
+                           and (p.get("group_number") == point_number if point_number is not None
+                                else p.get("kind") == "errand" and p.get("group_number") is not None)]
+                if point_number is not None and not matched:
+                    return {"ok": False, "reason": "地点番号が一覧にありません"}
+                if point_number is None:
+                    groups = sorted({p.get("group_number") for p in matched if isinstance(p.get("group_number"), int)})
+                    if len(groups) == 1:
+                        point_number = groups[0]
+                        signal["point_number"] = point_number
+                target_group = point_number
+                target_order = min((p["point_number"] for p in matched if target_group is not None
+                                    and p.get("group_number") == target_group), default=None)
+                for point in points:
+                    if not isinstance(point, dict):
+                        continue
+                    if target_group is not None and point.get("group_number") == target_group:
+                        point["status"] = "着いた"
+                    elif target_order is not None and point.get("point_number", 0) < target_order \
+                            and point.get("kind") == "through" and point.get("status") == "まだ":
+                        point["status"] = "済んだ"
+                move["points"] = points
             latest["move_status"] = {"status": state, "signals": signals}
+            if points:
+                latest["move_status"]["points"] = points
             updated_at = at
             self.conn.execute("UPDATE cases SET extra=?,version=version+1,updated_at=? WHERE case_id=?",
                               (_json(latest), updated_at, case_id))
@@ -279,6 +354,121 @@ class Ledger:
                                     "after": {"status": state, "signal": signal_type, "at": parsed.isoformat()}}},
                                  "移動の合図を記録", updated_at)
         return {"ok": True, "created": True, "case_id": case_id, "status": state}
+
+    def record_departure_notice(self, short_number, received_at, now=None):
+        """Record only the time of an owned departure-time reminder notification."""
+        try:
+            parsed = datetime.fromisoformat(str(received_at).replace("Z", "+00:00"))
+        except ValueError:
+            return {"ok": False, "reason": "合図の時刻が正しくありません"}
+        if parsed.tzinfo is None:
+            return {"ok": False, "reason": "合図の時刻に時差がありません"}
+        matches = []
+        for case in self.list_cases():
+            try:
+                extra = json.loads(case.get("extra") or "{}")
+            except (TypeError, ValueError):
+                continue
+            if extra.get("movement") is True and str(extra.get("short_number")) == str(short_number):
+                matches.append((case, extra))
+        if len(matches) != 1:
+            return {"ok": False, "reason": "移動予定を一意に確認できません"}
+        case, extra = matches[0]
+        owned = any(op.get("kind") == "reminder" and op.get("case_id") == case["case_id"]
+                    and op.get("state") == "成功（読み戻し済み）"
+                    and isinstance(op.get("result"), dict)
+                    and op["result"].get("grounds") == "departure_notice"
+                    and op["result"].get("reminder_title") == f"出発の時間：#{short_number}"
+                    and not op["result"].get("deleted_at") for op in self.list_ops())
+        if not owned:
+            return {"ok": False, "reason": "予定ばんが作った出発の知らせではありません"}
+        extra["departure_notice_received_at"] = parsed.isoformat()
+        at = now or parsed.isoformat()
+        with self.tx():
+            self.conn.execute("UPDATE cases SET extra=?,version=version+1,updated_at=? WHERE case_id=?",
+                              (_json(extra), at, case["case_id"]))
+            self._record_history(case["case_id"], {"departure_notice_at": parsed.isoformat()},
+                                 "出発の知らせを記録", at)
+        return {"ok": True, "case_id": case["case_id"], "received_at": parsed.isoformat()}
+
+    def record_done_check_outcome(self, case_id, outcome, answered_at, reason=None, method="本人の答え", now=None,
+                                  actual_duration_min=None):
+        allowed = {"できた", "一部できた", "できなかった", "わからない", "移動済み", "削除済み", "終了時刻修正"}
+        reasons = {"時間が足りなかった", "体調", "忘れていた", "ほかの用事が入った", "その他"}
+        if outcome not in allowed or method not in {"場所の合図", "本人の答え", "カレンダー変更", "自動判定"}:
+            return {"ok": False, "reason": "結果の種類が正しくありません"}
+        if reason is not None and reason not in reasons:
+            return {"ok": False, "reason": "理由は選択肢から指定してください"}
+        if actual_duration_min is not None and (isinstance(actual_duration_min, bool)
+                or not isinstance(actual_duration_min, int) or actual_duration_min < 0
+                or outcome != "終了時刻修正" or method != "カレンダー変更"):
+            return {"ok": False, "reason": "所要の実績値が正しくありません"}
+        try:
+            parsed = datetime.fromisoformat(str(answered_at).replace("Z", "+00:00"))
+        except ValueError:
+            return {"ok": False, "reason": "回答時刻が正しくありません"}
+        if parsed.tzinfo is None:
+            return {"ok": False, "reason": "回答時刻に時差がありません"}
+        case = self.get_case(case_id)
+        if not case:
+            return {"ok": False, "reason": "予定がありません"}
+        try:
+            extra = json.loads(case.get("extra") or "{}")
+        except (TypeError, ValueError):
+            return {"ok": False, "reason": "予定の記録を読めません"}
+        if not isinstance(extra, dict):
+            return {"ok": False, "reason": "予定の記録が正しくありません"}
+        check = {"outcome": outcome, "method": method, "answered_at": parsed.isoformat()}
+        if reason is not None:
+            check["reason"] = reason
+        if actual_duration_min is not None:
+            check["actual_duration_min"] = actual_duration_min
+        extra["done_check"] = check
+        at = now or parsed.isoformat()
+        with self.tx():
+            self.conn.execute("UPDATE cases SET extra=?,version=version+1,updated_at=? WHERE case_id=?",
+                              (_json(extra), at, case_id))
+            self._record_history(case_id, {"done_check": check}, "予定の結果を記録", at)
+        return {"ok": True, "case_id": case_id, "outcome": outcome}
+
+    def record_done_check_fired(self, short_number, received_at, now=None):
+        """Record the delivery time of an owned, generic end-check reminder."""
+        try:
+            parsed = datetime.fromisoformat(str(received_at).replace("Z", "+00:00"))
+        except ValueError:
+            return {"ok": False, "reason": "通知時刻が正しくありません"}
+        if parsed.tzinfo is None:
+            return {"ok": False, "reason": "通知時刻に時差がありません"}
+        candidates = []
+        for case in self.list_cases():
+            try:
+                extra = json.loads(case.get("extra") or "{}")
+            except (TypeError, ValueError):
+                continue
+            if str(extra.get("short_number")) == str(short_number):
+                candidates.append((case, extra))
+        if len(candidates) != 1:
+            return {"ok": False, "reason": "予定を一意に確認できません"}
+        case, extra = candidates[0]
+        owned = any(op.get("kind") == "reminder" and op.get("case_id") == case["case_id"]
+                    and op.get("state") == "成功（読み戻し済み）"
+                    and isinstance(op.get("result"), dict)
+                    and op["result"].get("grounds") == "done_check"
+                    and op["result"].get("reminder_title") == f"終わった？：#{short_number}"
+                    and not any(op["result"].get(k) for k in ("completed_at", "deleted_at"))
+                    for op in self.list_ops())
+        if not owned:
+            return {"ok": False, "reason": "予定ばんが作った有効な終了確認リマインダーではありません"}
+        done = extra.get("done_check") if isinstance(extra.get("done_check"), dict) else {}
+        done["fired_at"] = parsed.isoformat()
+        extra["done_check"] = done
+        at = now or parsed.isoformat()
+        with self.tx():
+            self.conn.execute("UPDATE cases SET extra=?,version=version+1,updated_at=? WHERE case_id=?",
+                              (_json(extra), at, case["case_id"]))
+            self._record_history(case["case_id"], {"done_check_fired_at": parsed.isoformat()},
+                                 "終了確認の通知を記録", at)
+        return {"ok": True, "case_id": case["case_id"], "fired_at": parsed.isoformat()}
 
     def record_movement_evaluation(self, case_id, evaluation, now=None, cover_proposed=False):
         """Persist time/status calibration only; never accept location or free-form text."""

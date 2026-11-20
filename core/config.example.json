@@ -61,5 +61,9 @@
   "reminder_location_permission": "",
   "reminder_full_disk_access": "",
   "movement_monitoring": "",
-  "movement_monitoring_started_at": ""
+  "movement_monitoring_started_at": "",
+  "done_check": "all",
+  "done_check_output": "same_as_morning",
+  "place_group_meters": 200,
+  "move_reminder_limit": 10
 }

@@ -186,10 +186,16 @@ def handle(ledger, cfg, headers, body_bytes, now, secret):
                                            "body_masked": body_masked,
                                            "sender_role": sender_role}, now=at)
         ledger.conn.execute("INSERT INTO intake_requests(request_id,input_id) VALUES(?,?)", (request_id, input_id))
-        if created and reminder is not None and reminder.get("kind") in {"出発の合図", "到着の合図"}:
-            ledger.record_movement_signal(reminder["case_number"],
-                                          "出発" if reminder["kind"] == "出発の合図" else "到着",
-                                          received_at, now=at)
+        if created and reminder is not None:
+            if reminder.get("kind") in {"出発の合図", "到着の合図"}:
+                ledger.record_movement_signal(reminder["case_number"],
+                                              "出発" if reminder["kind"] == "出発の合図" else "到着",
+                                              received_at, now=at,
+                                              point_number=int(reminder["point_number"]) if reminder.get("point_number") else None)
+            elif reminder.get("kind") == "出発の知らせ":
+                ledger.record_departure_notice(reminder["case_number"], received_at, now=at)
+            elif reminder.get("kind") == "end_check":
+                ledger.record_done_check_fired(reminder["case_number"], received_at, now=at)
     return _result(True, request_id, input_id, created, "受け取りました" if created else "入力済みです", signed_by)
 
 
