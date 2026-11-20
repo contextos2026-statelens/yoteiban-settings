@@ -57,13 +57,12 @@ def read_fixture_or_db(path: str | Path, after: int = 0) -> tuple[int, list[dict
 
 
 def payload_for(notice: dict) -> dict:
-    from yoteiban_core.reminder_kind import classify
-    safe_title = classify(notice.get("title"))["safe_title"]
-    native_ref = stable_ref(notice.get("raw_id"), safe_title, notice["received_at"])
+    title = notice.get("title", "")
+    native_ref = stable_ref(notice.get("raw_id"), title, notice["received_at"])
     request_id = "rq-rem-" + hashlib.sha256(native_ref.encode()).hexdigest()[:20]
     return {"kind": "yoteiban-wake", "request_id": request_id,
             "source": "reminder_notification", "native_ref": native_ref,
-            "received_at": notice["received_at"], "title": safe_title}
+            "received_at": notice["received_at"], "title": title}
 
 
 class Reader:

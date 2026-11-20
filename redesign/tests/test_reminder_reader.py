@@ -1,4 +1,6 @@
 import json
+import hashlib
+import hmac
 import plistlib
 import sqlite3
 import sys
@@ -11,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "core"))
 sys.path.insert(0, str(ROOT / "redesign" / "mac"))
 from reminder_reader.reader import Reader
+from yoteiban_core.intake import handle
+from yoteiban_core.ledger import Ledger
 from yoteiban_core.reminder_kind import classify
 
 MAC_EPOCH = 978307200
@@ -59,20 +63,58 @@ class ReminderReaderTests(unittest.TestCase):
             db.execute("INSERT INTO record VALUES(?,?,?,?,1)",
                        (rec_id, uuid, plistlib.dumps({"req": {"titl": title}}), delivered))
 
-    def test_startup_baselines_old_notifications_then_forwards_only_new_safe_title(self):
+    def test_startup_baselines_old_notifications_then_forwards_new_original_title(self):
         self.insert(1, "出発：#77", uuid="old-fixture")
         reader = self.reader()
         self.assertEqual(reader._state()["cursor"], 1)
         self.insert(2, "架空町 住所1-2 座標35.0,139.0", uuid="new-fixture")
         self.assertTrue(reader.once()["ok"])
         self.assertEqual(len(self.sent), 1)
-        self.assertEqual(self.sent[0]["title"], "リマインダー通知（その他）")
+        self.assertEqual(self.sent[0]["title"], "架空町 住所1-2 座標35.0,139.0")
         self.assertEqual(set(self.sent[0]), {"kind", "request_id", "source", "native_ref", "received_at", "title"})
         self.assertIsNotNone(datetime.fromisoformat(self.sent[0]["received_at"]).tzinfo)
-        self.assertNotIn("架空町", json.dumps(self.sent))
+        self.assertIn("架空町", json.dumps(self.sent, ensure_ascii=False))
         self.assertEqual(self.heartbeats[-1], ("fixture-heartbeat", True))
         saved = json.loads(self.state.read_text())
         self.assertEqual(saved["sent"], [self.sent[0]["native_ref"]])
+        self.assertNotIn("架空町", self.state.read_text())
+
+    def test_fixture_reader_payload_flows_through_intake_classifier_and_sanitized_ledger(self):
+        self.state.write_text(json.dumps({"cursor": 0, "sent": []}))
+        reader = self.reader()
+        cases = [
+            ("出発の時間：#12", "出発の知らせ"),
+            ("出発：#12", "出発の合図"),
+            ("到着：#12", "到着の合図"),
+            ("架空町のリマインダー 77-88-99 座標35.0,139.0", "その他"),
+        ]
+        self.responses = [{"state": "起こし済み", "http": 200} for _ in cases]
+        ledger = Ledger(self.root / "intake.sqlite")
+        secret = "fixture-secret"
+        try:
+            for index, (title, expected_kind) in enumerate(cases, start=1):
+                self.insert(index, title, uuid=f"joined-fixture-{index}")
+                self.assertTrue(reader.once()["ok"])
+                sent = self.sent[-1]
+                self.assertEqual(sent["title"], title)
+                self.assertIn("T", sent["received_at"])
+                self.assertEqual(set(sent), {"kind", "request_id", "source", "native_ref", "received_at", "title"})
+                self.assertEqual(classify(sent["title"])["kind"], expected_kind)
+                if expected_kind != "その他":
+                    self.assertEqual(classify(sent["title"])["case_number"], "12")
+                raw = json.dumps(sent, ensure_ascii=False).encode()
+                signature = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+                result = handle(ledger, {}, {"X-Yoteiban-Signature": signature}, raw,
+                                "2026-11-20T09:01:00+09:00", secret)
+                self.assertTrue(result["ok"], result)
+            rows = [row["body_text"] for row in ledger.conn.execute("SELECT body_text FROM raw_inputs ORDER BY received_at")]
+            self.assertEqual([row.split("（", 1)[0] for row in rows],
+                             ["出発の知らせ：#12", "出発の合図：#12", "到着の合図：#12", "その他のリマインダー通知"])
+            self.assertNotIn("架空町", " ".join(rows))
+            self.assertNotIn("77-88-99", " ".join(rows))
+            self.assertNotIn("35.0,139.0", " ".join(rows))
+        finally:
+            ledger.close()
 
     def test_notifications_from_other_apps_are_ignored(self):
         self.state.write_text(json.dumps({"cursor": 0, "sent": []}))
