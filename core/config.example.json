@@ -53,5 +53,12 @@
     "casebook_py": "<CASEBOOK_PY>",
     "delegation_py": "<DELEGATION_PY>",
     "nightly_state": "<NIGHTLY_STATE_DIR>"
-  }
+  },
+  "reminder_reader_enabled": "",
+  "resident_mac_available": "",
+  "same_apple_account": "",
+  "find_my_device": "",
+  "reminder_location_permission": "",
+  "reminder_full_disk_access": "",
+  "movement_monitoring": ""
 }

@@ -79,6 +79,21 @@ class CatalogTests(unittest.TestCase):
         answered = dict(memory, maps_primary="google", transit_time_fallback=True)
         self.assertEqual(sd.build_report(catalog, "1.0.36", "1.0.37", answered)["pending"], [])
 
+    def test_reminder_reader_questions_are_skipped_when_answered_and_list_is_not_duplicated(self):
+        catalog = sd.load_catalog()
+        reader_ids = {"resident_mac", "same_apple_account", "find_my_device",
+                      "reminder_location_permission", "reminder_full_disk_access", "movement_monitoring"}
+        reader_questions = [q for q in catalog["questions"] if q["id"] in reader_ids]
+        self.assertEqual(len(reader_questions), len(reader_ids))
+        memory = {q["memory_key"]: "fixture answer" for q in reader_questions}
+        self.assertEqual(sd.pending_questions(reader_questions, memory), [])
+        unanswered = [q for q in reader_questions if q["id"] == "resident_mac"]
+        self.assertEqual([q["id"] for q in sd.pending_questions(unanswered, {})], ["resident_mac"])
+        self.assertEqual(sum(q["id"] == "departure_notice" for q in catalog["questions"]), 1)
+        departure = [q for q in catalog["questions"] if q["id"] == "departure_notice"]
+        self.assertEqual(len(departure), 1)
+        self.assertEqual(departure[0]["answer_keys"].count("move_reminder_list"), 1)
+
 
 class DeltaFixtureTests(unittest.TestCase):
     def test_adds_only_later_questions(self):

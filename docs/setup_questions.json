@@ -31,6 +31,18 @@
         "departure_notice"
       ],
       "note": "決まった移動の出発リマインダーを置くかと、使う専用リストを初回・追加設定で確認する。"
+    },
+    {
+      "version": "1.0.39",
+      "added_question_ids": [
+        "resident_mac",
+        "same_apple_account",
+        "find_my_device",
+        "reminder_location_permission",
+        "reminder_full_disk_access",
+        "movement_monitoring"
+      ],
+      "note": "常駐MacとiPhoneの通知取得・位置許可・移動の見守りの初回設定を追加。専用リストは既存の質問を再利用する。"
     }
   ],
   "questions": [
@@ -390,6 +402,72 @@
         "出発リマインダーの設定"
       ],
       "unavailable_if_declined": "出発の時刻の自動リマインダーは置かない。予定の案内は従来の通知で確認する。"
+    },
+    {
+      "id": "resident_mac",
+      "added_in": "1.0.39",
+      "title": "常駐Mac",
+      "memory_key": "常駐Macの有無",
+      "aliases": [
+        "常駐Mac"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "26"
+    },
+    {
+      "id": "same_apple_account",
+      "added_in": "1.0.39",
+      "title": "Appleアカウント",
+      "memory_key": "iPhoneとMacのAppleアカウント",
+      "aliases": [
+        "同じAppleアカウント"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "27"
+    },
+    {
+      "id": "find_my_device",
+      "added_in": "1.0.39",
+      "title": "位置に使う端末",
+      "memory_key": "「探す」で自分の位置に使う端末",
+      "aliases": [
+        "位置に使う端末"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "28"
+    },
+    {
+      "id": "reminder_location_permission",
+      "added_in": "1.0.39",
+      "title": "リマインダーの位置情報",
+      "memory_key": "リマインダーの位置情報の許可",
+      "aliases": [
+        "リマインダー位置情報の許可"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "29"
+    },
+    {
+      "id": "reminder_full_disk_access",
+      "added_in": "1.0.39",
+      "title": "通知記録へのアクセス",
+      "memory_key": "フルディスクアクセスの設定",
+      "aliases": [
+        "通知記録へのアクセス許可"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "30"
+    },
+    {
+      "id": "movement_monitoring",
+      "added_in": "1.0.39",
+      "title": "移動の見守り",
+      "memory_key": "移動の見守りの利用",
+      "aliases": [
+        "移動の見守り"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "31"
     }
   ]
 }

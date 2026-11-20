@@ -24,6 +24,8 @@ def canonicalize_source(source: str) -> str:
         return "imessage"
     if key == "calendar" or key.startswith("calendar-"):
         return "calendar"
+    if key == "reminder_notification" or key.startswith("reminder_notification-"):
+        return "reminder_notification"
     return text
 
 
@@ -41,6 +43,9 @@ def normalize_native_ref(source, raw) -> str:
         return _imessage(text)
     if kind == "calendar":
         return _calendar(text)
+    if kind == "reminder_notification":
+        value = text[6:].strip() if text.casefold().startswith("notif:") else text
+        return "notif:" + value.casefold()
     return text
 
 
