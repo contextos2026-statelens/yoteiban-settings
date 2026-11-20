@@ -214,6 +214,26 @@ def travel_check(events: list[Event]) -> list[dict]:
     return findings
 
 
+def departure(start: str, travel_minutes: int | None, prep_minutes: int = 0,
+              travel_confirmed: bool = True) -> dict:
+    """Calculate a departure reminder time, or return an ask-once suggestion.
+
+    Unknown travel duration never produces a reminder time.
+    """
+    event_start = parse_time(start)
+    if not travel_confirmed or travel_minutes is None:
+        return {"departure_time": None, "unconfirmed": True, "create_reminder": False,
+                "ask_owner_once": True,
+                "suggestion": "移動の所要時間が未確認です。所要を確認してよいですか？"}
+    if isinstance(travel_minutes, bool) or not isinstance(travel_minutes, int) or travel_minutes < 0:
+        raise CalcError("移動の所要時間は0以上の分数で指定してください")
+    if isinstance(prep_minutes, bool) or not isinstance(prep_minutes, int) or prep_minutes < 0:
+        raise CalcError("準備の時間は0以上の分数で指定してください")
+    leave = event_start - timedelta(minutes=travel_minutes + prep_minutes)
+    return {"departure_time": leave.isoformat(), "departure_label": fmt(leave),
+            "unconfirmed": False, "create_reminder": True, "ask_owner_once": False}
+
+
 def day_load_minutes(events: list[Event], day: date) -> int:
     """その日の本人の予定の合計（分）。日をまたぐ予定は、その日に入る分だけ数える。重なりは二重に数えない。"""
     d0 = datetime(day.year, day.month, day.day, tzinfo=JST)

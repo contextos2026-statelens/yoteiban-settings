@@ -9,7 +9,7 @@ from dataclasses import asdict
 
 from datetime import date
 
-from .calc import (CalcError, Event, find_conflicts, free_slots, fmt_md, parse_time, travel_check, fmt, conflict_kind, check_weekdays,
+from .calc import (CalcError, Event, find_conflicts, free_slots, fmt_md, parse_time, travel_check, departure, fmt, conflict_kind, check_weekdays,
                    weekday_ja, find_duplicates)
 from .urgency import Context, Item, decide
 from .nightly import Case, review, record_feedback, load_feedback, hit_rate, HORIZON_DAYS
@@ -178,6 +178,12 @@ def cmd_route_links(data: dict) -> dict:
     return build_route_links(data)
 
 
+def cmd_departure(data: dict) -> dict:
+    """出発時刻を計算し、所要未確認なら質問案だけを返す。"""
+    return departure(data["start"], data.get("travel_minutes"), data.get("prep_minutes", 0),
+                     data.get("travel_confirmed", True))
+
+
 def cmd_snapshot(data: dict) -> dict:
     return quick_snapshot(data["now"], data.get("events", []), data.get("items", []), data.get("cursors"))
 
@@ -194,7 +200,7 @@ COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": c
             "coverage": cmd_coverage, "morning": cmd_morning, "weekday": cmd_weekday,
             "feedback": cmd_feedback, "hit-rate": cmd_hit_rate, "diff": cmd_diff,
             "snapshot": cmd_snapshot, "free": cmd_free,
-            "latency": cmd_latency, "route-links": cmd_route_links}
+            "latency": cmd_latency, "route-links": cmd_route_links, "departure": cmd_departure}
 
 
 def main(argv=None) -> int:

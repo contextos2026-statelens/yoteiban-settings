@@ -5,6 +5,8 @@
     "<READONLY_CALENDAR_ID>"
   ],
   "reminder_list_id": "<REMINDER_LIST_ID>",
+  "move_reminder_list": "<MOVE_REMINDER_LIST_ID>",
+  "departure_notice": "reminder",
   "reminder_readonly_list_ids": [
     "<READONLY_LIST_ID>"
   ],
