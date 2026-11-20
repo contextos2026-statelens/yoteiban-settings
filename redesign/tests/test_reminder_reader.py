@@ -1,0 +1,126 @@
+import json
+import plistlib
+import sqlite3
+import sys
+import tempfile
+import unittest
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "core"))
+sys.path.insert(0, str(ROOT / "redesign" / "mac"))
+from reminder_reader.reader import Reader
+from yoteiban_core.reminder_kind import classify
+
+MAC_EPOCH = 978307200
+
+
+def make_db(path, rows=()):
+    with sqlite3.connect(path) as db:
+        db.executescript("CREATE TABLE app(app_id INTEGER PRIMARY KEY,identifier TEXT);"
+                         "CREATE TABLE record(rec_id INTEGER PRIMARY KEY,uuid TEXT,data BLOB,"
+                         "delivered_date REAL,app_id INTEGER);")
+        db.execute("INSERT INTO app VALUES(1,'com.apple.reminders')")
+        db.execute("INSERT INTO app VALUES(2,'other.app')")
+        for rec_id, title, delivered, app_id, uuid in rows:
+            data = plistlib.dumps({"req": {"titl": title}})
+            db.execute("INSERT INTO record VALUES(?,?,?,?,?)", (rec_id, uuid, data, delivered, app_id))
+
+
+class ReminderReaderTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.db = self.root / "fixture.sqlite"
+        make_db(self.db)
+        self.state = self.root / "state.json"
+        self.sent = []
+        self.heartbeats = []
+        self.responses = [{"state": "起こし済み", "http": 200}]
+        self.when = datetime.fromtimestamp(MAC_EPOCH + 1790000000, timezone.utc).astimezone()
+        self.cfg = {"notification_db": str(self.db), "webhook_url": "fixture", "heartbeat_url": "fixture-heartbeat"}
+
+    def wake(self, *args, **kwargs):
+        self.sent.append(args[2])
+        return self.responses.pop(0)
+
+    def heartbeat(self, url, ok):
+        self.heartbeats.append((url, ok))
+        return True
+
+    def reader(self):
+        return Reader(self.cfg, self.state, wake_fn=self.wake,
+                      heartbeat_fn=self.heartbeat, now=lambda: self.when)
+
+    def insert(self, rec_id, title, uuid="fixture-id"):
+        delivered = self.when.astimezone(timezone.utc).timestamp() - MAC_EPOCH
+        with sqlite3.connect(self.db) as db:
+            db.execute("INSERT INTO record VALUES(?,?,?,?,1)",
+                       (rec_id, uuid, plistlib.dumps({"req": {"titl": title}}), delivered))
+
+    def test_startup_baselines_old_notifications_then_forwards_only_new_safe_title(self):
+        self.insert(1, "出発：#77", uuid="old-fixture")
+        reader = self.reader()
+        self.assertEqual(reader._state()["cursor"], 1)
+        self.insert(2, "架空町 住所1-2 座標35.0,139.0", uuid="new-fixture")
+        self.assertTrue(reader.once()["ok"])
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.sent[0]["title"], "リマインダー通知（その他）")
+        self.assertEqual(set(self.sent[0]), {"kind", "request_id", "source", "native_ref", "received_at", "title"})
+        self.assertIsNotNone(datetime.fromisoformat(self.sent[0]["received_at"]).tzinfo)
+        self.assertNotIn("架空町", json.dumps(self.sent))
+        self.assertEqual(self.heartbeats[-1], ("fixture-heartbeat", True))
+        saved = json.loads(self.state.read_text())
+        self.assertEqual(saved["sent"], [self.sent[0]["native_ref"]])
+
+    def test_notifications_from_other_apps_are_ignored(self):
+        self.state.write_text(json.dumps({"cursor": 0, "sent": []}))
+        delivered = self.when.astimezone(timezone.utc).timestamp() - MAC_EPOCH
+        with sqlite3.connect(self.db) as db:
+            db.execute("INSERT INTO record VALUES(1,'other-fixture',?,?,2)",
+                       (plistlib.dumps({"req": {"titl": "出発：#3"}}), delivered))
+        self.assertTrue(self.reader().once()["ok"])
+        self.assertEqual(self.sent, [])
+
+    def test_only_http_200_and_woken_state_are_marked_successful(self):
+        self.state.write_text(json.dumps({"cursor": 0, "sent": []}))
+        self.insert(1, "到着：#4", uuid="retry-fixture")
+        self.responses = [{"state": "起こし済み", "http": 503}, {"state": "起こし済み", "http": 200}]
+        self.assertFalse(self.reader().once()["ok"])
+        self.assertEqual(json.loads(self.state.read_text())["sent"], [])
+        self.assertTrue(self.reader().once()["ok"])
+        self.assertEqual(len(json.loads(self.state.read_text())["sent"]), 1)
+
+    def test_unreadable_database_uses_existing_failure_heartbeat_and_retry_result(self):
+        self.cfg["notification_db"] = str(self.root / "missing.sqlite")
+        self.assertFalse(self.reader().once()["ok"])
+        self.assertEqual(self.heartbeats[-1], ("fixture-heartbeat", False))
+        self.assertEqual(self.sent, [])
+
+    def test_unreadable_database_backoff_is_at_least_thirty_seconds(self):
+        self.cfg["notification_db"] = str(self.root / "missing.sqlite")
+        delays = []
+        class StopLoop(Exception):
+            pass
+        def stop_after_retry_delay(seconds):
+            delays.append(seconds)
+            raise StopLoop
+        reader = Reader(self.cfg, self.state, wake_fn=self.wake, heartbeat_fn=self.heartbeat,
+                        sleep=stop_after_retry_delay, now=lambda: self.when)
+        with self.assertRaises(StopLoop):
+            reader.run(interval_s=5)
+        self.assertEqual(delays, [30])
+        self.assertEqual(self.heartbeats, [("fixture-heartbeat", False)])
+
+    def test_classifier_recognizes_only_exact_signal_formats(self):
+        self.assertEqual(classify("出発の時間：#0012")["summary"], "出発の知らせ：#12")
+        self.assertEqual(classify("出発：#13")["kind"], "出発の合図")
+        self.assertEqual(classify("到着：#14")["kind"], "到着の合図")
+        self.assertEqual(classify("出発：#13 架空駅")["kind"], "その他")
+
+    def test_installer_disables_legacy_agent_before_login_item_and_leaves_watch_alone(self):
+        script = (ROOT / "redesign/mac/reminder_reader/install.sh").read_text()
+        self.assertLess(script.index("com.yoteiban.reminder-notifications"), script.index("osascript"))
+        self.assertNotIn('bootout "gui/$(id -u)/com.yoteiban.watch"', script)
+        self.assertIn('[[ "$choice" == "使う" ]] ||', script)

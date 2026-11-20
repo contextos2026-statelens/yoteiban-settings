@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from .ledger import Ledger
 from .refs import normalize_native_ref
+from .reminder_kind import classify as classify_reminder
 
 DEFAULT_MAX_BODY_BYTES = 65536
 DEFAULT_MAX_BODY_CHARS = 8000
@@ -144,7 +145,13 @@ def handle(ledger, cfg, headers, body_bytes, now, secret):
         native_ref = normalize_native_ref(source, native_ref)
     received_at = payload.get("received_at")
     body_text = payload.get("body_text", "")
-    sender_role = payload.get("sender_role", payload.get("role", "不明"))
+    reminder = None
+    if source == "reminder_notification":
+        # Ignore all free-form body/location fields. Only exact safe reminder
+        # titles may identify a signal; other titles collapse to one generic line.
+        reminder = classify_reminder(payload.get("title", ""))
+        body_text = f"{reminder['summary']}（{received_at}）"
+    sender_role = "本人" if reminder is not None else payload.get("sender_role", payload.get("role", "不明"))
     max_chars = int(cfg.get("max_body_chars", DEFAULT_MAX_BODY_CHARS))
     if (not isinstance(source, str) or not source or not isinstance(native_ref, str) or not native_ref
             or not isinstance(received_at, str) or not received_at):
