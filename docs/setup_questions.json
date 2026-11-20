@@ -43,6 +43,13 @@
         "movement_monitoring"
       ],
       "note": "常駐MacとiPhoneの通知取得・位置許可・移動の見守りの初回設定を追加。専用リストは既存の質問を再利用する。"
+    },
+    {
+      "version": "1.0.41",
+      "added_question_ids": [
+        "done_check"
+      ],
+      "note": "予定の終了時に、結果が分からない時だけ確認する設定を追加。"
     }
   ],
   "questions": [
@@ -468,6 +475,23 @@
       ],
       "in_initial_setup": true,
       "setup_question": "31"
+    },
+    {
+      "id": "done_check",
+      "added_in": "1.0.41",
+      "title": "できたかの確認",
+      "memory_key": "できたかの確認設定",
+      "aliases": [
+        "予定の完了確認",
+        "できたかできなかったかの確認"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "32",
+      "default": "all",
+      "unavailable_if_declined": "聞かない設定では、分からない予定の結果は自動で残らず、カバー案を出しにくくなる。",
+      "answer_keys": [
+        "done_check"
+      ]
     }
   ]
 }

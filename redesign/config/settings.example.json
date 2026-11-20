@@ -56,6 +56,10 @@
     "<目的の一覧（5〜10行）>"
   ],
   "daily_load_limit_min": null,
+  "done_check": "all",
+  "done_check_output": "same_as_morning",
+  "place_group_meters": 200,
+  "move_reminder_limit": 10,
   "tools": {
     "seihon": "<YOTEIBAN_DATA>/yoteiban-rules/seihon.md",
     "redesign_lib": "<YOTEIBAN_DATA>/yoteiban-redesign/lib",

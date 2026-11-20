@@ -16,10 +16,12 @@ class MoveWatchGateTests(unittest.TestCase):
         self.ledger = Ledger(Path(self.tmp.name) / "fixture.sqlite")
         self.ledger.upsert_case({"case_id": "case-fixture", "kind": "予定", "title": "架空会場の面談",
                                  "status": "決まった", "event_start": "2026-11-21T10:00:00+09:00",
+                                 "event_end": "2026-11-21T11:00:00+09:00",
                                  "extra": json.dumps({"movement": True, "short_number": "12"})}, now=NOW)
         self.cfg = {"cal_personal_id": "calendar-personal", "cal_readonly_ids": [],
                     "move_reminder_list": "reminder-fixture-list", "reminder_list_id": "reminder-default",
-                    "reminder_readonly_list_ids": ["reminder-shared"], "movement_monitoring": "使う"}
+                    "reminder_readonly_list_ids": ["reminder-shared"], "movement_monitoring": "使う",
+                    "done_check": "all", "departure_notice": "reminder"}
         cal = {"title": "架空会場の面談", "event_start": "2026-11-21T10:00:00+09:00"}
         approval = self.ledger.grant_approval("cal_personal", payload_hash(cal), 60, now=NOW)
         checked = check(self.ledger, self.cfg, {"kind": "cal_personal", "target_id": "calendar-personal",
@@ -140,6 +142,61 @@ class MoveWatchGateTests(unittest.TestCase):
         self.assertNotIn("139.0", case["extra"])
         bad = dict(evaluation, status="遅れ：架空駅")
         self.assertFalse(self.ledger.record_movement_evaluation("case-fixture", bad, NOW)["ok"])
+
+    def test_point_number_arrival_and_current_location_departure_after_notice(self):
+        self.assertTrue(self.ledger.set_movement_points("case-fixture", [
+            {"point_number": 1, "kind": "through", "group_number": None, "has_signal": False, "status": "まだ"},
+            {"point_number": 2, "kind": "errand", "group_number": 1, "has_signal": True, "status": "まだ"}], NOW)["ok"])
+        op = self.op("到着")
+        op["payload"].update(point_number=2, title="到着：#12-2")
+        self.assertFalse(check(self.ledger, self.cfg, op, NOW)["allow"])
+        op["payload"].update(point_number=1, title="到着：#12-1")
+        self.ledger.set_movement_points("case-fixture", [
+            {"point_number": 1, "kind": "errand", "group_number": 1, "has_signal": True, "status": "まだ"}], NOW)
+        checked = check(self.ledger, self.cfg, op, NOW)
+        self.assertTrue(checked["allow"], checked)
+        self.assertEqual(checked["point_number"], 1)
+        result(self.ledger, checked["op_id"], "ok", True, NOW, event_id="point-reminder-id")
+        signal = self.ledger.record_movement_signal("12", "到着", NOW, NOW, point_number=1)
+        self.assertTrue(signal["ok"])
+        points = json.loads(self.ledger.get_case("case-fixture")["extra"])["move_status"]["points"]
+        self.assertEqual(points[0]["status"], "着いた")
+
+        no_notice = self.op("出発")
+        no_notice["runtime_input"] = {"current_location": True, "trigger": "leave",
+                                       "notes": "架空会場の面談\nhttps://www.google.com/maps/dir/?api=1"}
+        self.assertFalse(check(self.ledger, self.cfg, no_notice, NOW)["allow"])
+        departure_op, _ = self.ledger.reserve_op("reminder", "reminder-fixture-list", "case-fixture",
+                                                  "departure-notice-fixture", linked_op_id=self.calendar_op, now=NOW)
+        self.ledger.set_op_state(departure_op, "実行中", now=NOW)
+        self.ledger.set_op_state(departure_op, "成功（読み戻し済み）",
+            result={"grounds": "departure_notice", "action": "add",
+                    "reminder_title": "出発の時間：#12", "reminder_id": "departure-time-fixture"}, now=NOW)
+        self.assertTrue(self.ledger.record_departure_notice("12", NOW, NOW)["ok"])
+        with_notice = check(self.ledger, self.cfg, no_notice, NOW)
+        self.assertTrue(with_notice["allow"], with_notice)
+
+    def test_end_check_gate_uses_only_owned_readback_reminder_and_minimal_title(self):
+        payload = {"operation": "add", "title": "終わった？：#12", "due": "2026-11-21T11:00:00+09:00"}
+        op = {"kind": "reminder", "grounds": "done_check", "target_id": "reminder-fixture-list",
+              "case_id": "case-fixture", "linked_op_id": self.calendar_op, "action": "add", "payload": payload}
+        checked = check(self.ledger, self.cfg, op, NOW)
+        self.assertTrue(checked["allow"], checked)
+        result(self.ledger, checked["op_id"], "ok", True, NOW, event_id="done-fixture-id")
+        self.assertFalse(check(self.ledger, self.cfg, op, NOW)["allow"])
+        raw = json.dumps(self.ledger.get_op(checked["op_id"])["result"], ensure_ascii=False)
+        self.assertNotIn("架空会場", raw)
+        self.assertNotIn("座標", raw)
+
+        self.assertTrue(self.ledger.record_done_check_fired("12", NOW, NOW)["ok"])
+        self.assertTrue(self.ledger.record_done_check_outcome("case-fixture", "できなかった", NOW,
+                                                              "時間が足りなかった")["ok"])
+        complete = {"kind": "reminder", "grounds": "done_check", "target_id": "reminder-fixture-list",
+                    "case_id": "case-fixture", "action": "complete",
+                    "basis": {"origin_reminder_op_id": checked["op_id"]},
+                    "payload": {"operation": "complete", "title": "終わった？：#12", "reminder_id": "done-fixture-id"}}
+        self.assertTrue(check(self.ledger, self.cfg, complete, NOW)["allow"])
+        self.assertFalse(check(self.ledger, self.cfg, dict(complete, target_id="reminder-shared"), NOW)["allow"])
 
 
 if __name__ == "__main__":

@@ -159,6 +159,9 @@ class ReminderReaderTests(unittest.TestCase):
         self.assertEqual(classify("出発の時間：#0012")["summary"], "出発の知らせ：#12")
         self.assertEqual(classify("出発：#13")["kind"], "出発の合図")
         self.assertEqual(classify("到着：#14")["kind"], "到着の合図")
+        point = classify("到着：#0012-03")
+        self.assertEqual((point["kind"], point["case_number"], point["point_number"]), ("到着の合図", "12", "3"))
+        self.assertEqual(classify("終わった？：#12")["kind"], "end_check")
         self.assertEqual(classify("出発：#13 架空駅")["kind"], "その他")
 
     def test_installer_disables_legacy_agent_before_login_item_and_leaves_watch_alone(self):

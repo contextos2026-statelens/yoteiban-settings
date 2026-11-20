@@ -236,6 +236,17 @@ class DepartureSetupQuestionTests(unittest.TestCase):
         }), [])
 
 
+class DoneCheckSetupQuestionTests(unittest.TestCase):
+    def test_question_32_is_pending_once_and_done_check_output_is_conditional(self):
+        catalog = sd.load_catalog()
+        item = next(q for q in catalog["questions"] if q["id"] == "done_check")
+        self.assertEqual(item["setup_question"], "32")
+        self.assertEqual(item["answer_keys"], ["done_check"])
+        self.assertEqual(sd.pending_questions([item], {}), [item])
+        self.assertEqual(sd.pending_questions([item], {"done_check": "all"}), [])
+        self.assertEqual(sd.pending_questions([item], {"予定の完了確認": "off"}), [])
+
+
 class AliasAnswerTests(unittest.TestCase):
     def test_alias_answer_is_treated_as_answered(self):
         question = {
