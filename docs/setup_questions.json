@@ -17,6 +17,13 @@
         "family_role"
       ],
       "note": "体の用事・使う量・心拍の知らせ・スマホの許可・連絡を受ける人の質問を足した。体の用事は聞いてから入れる。"
+    },
+    {
+      "version": "1.0.37",
+      "added_question_ids": [
+        "route_link_preferences"
+      ],
+      "note": "経路リンクの地図の選択と、電車で時刻指定するときの予備リンクを聞く。"
     }
   ],
   "questions": [
@@ -341,6 +348,24 @@
         "連絡担当",
         "病院・学校の連絡担当"
       ]
+    },
+    {
+      "id": "route_link_preferences",
+      "added_in": "1.0.37",
+      "title": "経路のリンク",
+      "memory_key": "経路リンクの設定",
+      "answer_keys": [
+        "maps_primary",
+        "transit_time_fallback"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "24",
+      "default": "Google マップを主に使い、時刻指定の電車では乗換案内も表示",
+      "aliases": [
+        "地図リンクの設定",
+        "経路リンク設定"
+      ],
+      "unavailable_if_declined": "リンクを作らず、移動経路は従来どおり確認できる方法で案内する。"
     }
   ]
 }

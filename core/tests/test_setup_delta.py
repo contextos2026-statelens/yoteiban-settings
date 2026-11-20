@@ -68,6 +68,17 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(sd.resolved_completed_version(catalog, "  "), "1.0.28")
         self.assertEqual(sd.questions_added_since(catalog, None, "1.0.29"), [])
 
+    def test_route_link_preferences_are_one_pending_question_until_both_answers_exist(self):
+        catalog = sd.load_catalog()
+        memory = {item["memory_key"]: "test answer" for item in catalog["questions"]
+                  if item["id"] != "route_link_preferences"}
+        report = sd.build_report(catalog, "1.0.36", "1.0.37", memory)
+        self.assertEqual(report["pending"], ["route_link_preferences"])
+        question = report["questions"][0]
+        self.assertEqual(question["answer_keys"], ["maps_primary", "transit_time_fallback"])
+        answered = dict(memory, maps_primary="google", transit_time_fallback=True)
+        self.assertEqual(sd.build_report(catalog, "1.0.36", "1.0.37", answered)["pending"], [])
+
 
 class DeltaFixtureTests(unittest.TestCase):
     def test_adds_only_later_questions(self):

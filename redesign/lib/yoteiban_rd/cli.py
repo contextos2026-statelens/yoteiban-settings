@@ -16,6 +16,7 @@ from .nightly import Case, review, record_feedback, load_feedback, hit_rate, HOR
 from .morning import Source, build_morning, coverage
 from .quick import diff as quick_diff, snapshot as quick_snapshot
 from .latency import judge as latency_judge
+from .route_links import build_route_links
 
 
 def _ev(d: dict) -> Event:
@@ -172,6 +173,11 @@ def cmd_latency(data: dict) -> dict:
     return latency_judge(rows)
 
 
+def cmd_route_links(data: dict) -> dict:
+    """経路を開くリンクだけを組み立てる（ネット接続・保存はしない）。"""
+    return build_route_links(data)
+
+
 def cmd_snapshot(data: dict) -> dict:
     return quick_snapshot(data["now"], data.get("events", []), data.get("items", []), data.get("cursors"))
 
@@ -188,7 +194,7 @@ COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": c
             "coverage": cmd_coverage, "morning": cmd_morning, "weekday": cmd_weekday,
             "feedback": cmd_feedback, "hit-rate": cmd_hit_rate, "diff": cmd_diff,
             "snapshot": cmd_snapshot, "free": cmd_free,
-            "latency": cmd_latency}
+            "latency": cmd_latency, "route-links": cmd_route_links}
 
 
 def main(argv=None) -> int:
