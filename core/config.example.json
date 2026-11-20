@@ -36,6 +36,8 @@
     "start": "<HH:MM>",
     "end": "<HH:MM>"
   },
+  "maps_primary": "google",
+  "transit_time_fallback": true,
   "morning_max_items": 3,
   "retention_days": 30,
   "_tools_note": "道具の置き場は tools か環境変数 YOTEIBAN_* / YRD_*。箱の絶対パスはGitに書かない。",

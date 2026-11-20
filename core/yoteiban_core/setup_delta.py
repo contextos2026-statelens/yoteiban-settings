@@ -64,6 +64,12 @@ def load_catalog(path: str | Path | None = None) -> dict:
             or any(not isinstance(alias, str) for alias in item["aliases"])
         ):
             raise ValueError("aliases は文字列の配列である必要があります")
+        if "answer_keys" in item and (
+            not isinstance(item["answer_keys"], list)
+            or not item["answer_keys"]
+            or any(not isinstance(key, str) for key in item["answer_keys"])
+        ):
+            raise ValueError("answer_keys は空でない文字列の配列である必要があります")
         parse_version(item["added_in"])
         if item["id"] in seen:
             raise ValueError(f"質問の id が重複しています: {item['id']}")
@@ -143,7 +149,11 @@ def pending_questions(
     pending: list[dict] = []
     for item in questions:
         keys = [item["memory_key"], *item.get("aliases", [])]
-        if any(already_answered(mem, key) or is_tentative(mem.get(key)) for key in keys):
+        answered = any(already_answered(mem, key) or is_tentative(mem.get(key)) for key in keys)
+        answer_keys = item.get("answer_keys", [])
+        if answer_keys and all(already_answered(mem, key) for key in answer_keys):
+            answered = True
+        if answered:
             continue
         integration = item.get("integration")
         if integration and integration in linked:
@@ -252,6 +262,7 @@ def main(argv: list[str] | None = None) -> int:
                 "id": item["id"],
                 "title": item.get("title", ""),
                 "memory_key": item["memory_key"],
+                "answer_keys": item.get("answer_keys", []),
                 "integration": item.get("integration", ""),
                 "unavailable_if_declined": item.get("unavailable_if_declined", ""),
                 "default": item.get("default", ""),
