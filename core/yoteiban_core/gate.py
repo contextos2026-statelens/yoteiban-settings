@@ -26,6 +26,7 @@ RUNNING = "実行中"
 FORCED_ADD = "forced_add"
 TENTATIVE = "tentative"
 DEPARTURE_NOTICE = "departure_notice"
+MOVE_WATCH = "move_watch"
 GROUNDS = {FORCED_ADD, TENTATIVE}
 # 予定ばんが自分で置いた［仮］だけを、聞かずに直す例外（2026-11-19 本人が決定）。
 SELF_RESOLVE = "self_resolve"
@@ -185,7 +186,7 @@ def _target_allowed(cfg: dict[str, Any], op: dict[str, Any]) -> tuple[bool, str]
         expected = cfg.get("cal_personal_id")
         return (target == expected and bool(expected), "本人カレンダーのIDが設定と一致しません")
     if kind == "reminder":
-        if op.get("grounds") == DEPARTURE_NOTICE:
+        if op.get("grounds") in {DEPARTURE_NOTICE, MOVE_WATCH}:
             expected = cfg.get("move_reminder_list")
             if not expected:
                 expected = cfg.get("reminder_list_id")
@@ -306,6 +307,105 @@ def _departure_notice_check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, A
                         "origin_reminder_op_id": origin_id, "event_name": case.get("title"),
                         "reminder_title": expected_title, "departure_time": payload.get("due"),
                         "travel_minutes": travel, "prep_minutes": prep, "notify_level": "なし"}
+
+
+def _move_watch_check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any]) -> tuple[bool, str, dict[str, Any]]:
+    """Allow only the two own location reminders and their update/delete/complete actions."""
+    if op.get("kind") != "reminder" or op.get("grounds") != MOVE_WATCH:
+        return False, "移動の見守りの関所ではありません", {}
+    if cfg.get("movement_monitoring") not in (True, "使う"):
+        return False, "移動の見守り設定が使うではありません", {}
+    if op.get("approval_id") or op.get("delegation"):
+        return False, "移動の見守り例外に承認・委任は混ぜられません", {}
+    payload, runtime = op.get("payload"), op.get("runtime_input")
+    basis = op.get("basis") if isinstance(op.get("basis"), dict) else {}
+    if not isinstance(payload, dict) or set(payload) - {"operation", "signal_type", "title", "reminder_id"}:
+        return False, "保存するpayloadに場所情報など余分な項目があります", {}
+    action = op.get("action", payload.get("operation"))
+    if action not in {"add", "update", "delete", "complete"} or payload.get("operation") != action:
+        return False, "移動リマインダーの操作種類が内容と一致しません", {}
+    case_id = op.get("case_id")
+    case = ledger.get_case(case_id) if isinstance(case_id, str) else None
+    if case is None:
+        return False, "移動予定がありません", {}
+    try:
+        extra = json.loads(case.get("extra") or "{}") if isinstance(case.get("extra"), str) else case.get("extra", {})
+    except (TypeError, ValueError):
+        extra = {}
+    if not isinstance(extra, dict) or extra.get("movement") is not True:
+        return False, "台帳で移動の予定と確認できません", {}
+    number = extra.get("short_number")
+    if not isinstance(number, str) or not re.fullmatch(r"[0-9]{1,6}", number):
+        return False, "台帳の案件番号がありません", {}
+    signal_type = payload.get("signal_type")
+    if signal_type not in {"出発", "到着"}:
+        return False, "合図の種類が正しくありません", {}
+    expected_title = ("出発：#" if signal_type == "出発" else "到着：#") + number
+    if payload.get("title") != expected_title:
+        return False, "件名は案件番号だけの出発／到着形式にしてください", {}
+    linked_id = op.get("linked_op_id")
+    linked = ledger.get_op(linked_id) if isinstance(linked_id, str) else None
+    if (linked is None or linked.get("kind") != "cal_personal" or linked.get("state") != SUCCESS
+            or linked.get("case_id") != case_id):
+        return False, "個人用カレンダーへの書き込みが読み戻し済みではありません", {}
+
+    origin_id = basis.get("origin_reminder_op_id")
+    origin = ledger.get_op(origin_id) if isinstance(origin_id, str) else None
+    origin_result = origin.get("result") if origin and isinstance(origin.get("result"), dict) else {}
+    entries = [old for old in ledger.list_ops()
+               if old.get("kind") == "reminder" and old.get("case_id") == case_id
+               and isinstance(old.get("result"), dict)
+               and old["result"].get("grounds") == MOVE_WATCH
+               and old["result"].get("signal_type") == signal_type]
+    if action == "add":
+        if case.get("status") != "決まった":
+            return False, "決まった予定だけに場所リマインダーを置けます", {}
+        if entries:
+            return False, "この予定の合図は既に作成済みです。同じものを追加しません", {}
+        if not isinstance(runtime, dict) or not runtime.get("location"):
+            return False, "端末に渡す場所がありません", {}
+        expected_trigger = "leave" if signal_type == "出発" else "arrive"
+        notes = runtime.get("notes")
+        if runtime.get("trigger") != expected_trigger:
+            return False, "場所の入る／出る指定が合図の種類と一致しません", {}
+        if not isinstance(notes, str) or case.get("title") not in notes \
+                or "https://www.google.com/maps/dir/?api=1" not in notes:
+            return False, "メモに予定名とGoogle マップ経路リンクがありません", {}
+    else:
+        if (origin is None or origin not in entries or origin.get("target_id") != op.get("target_id")
+                or origin.get("state") != SUCCESS or origin_result.get("completed_at")
+                or origin_result.get("deleted_at") or origin_result.get("replaced_by_op_id")):
+            return False, "予定ばんが作った有効な合図リマインダーがありません", {}
+        reminder_id = origin_result.get("reminder_id")
+        if not isinstance(reminder_id, str) or not reminder_id or payload.get("reminder_id") != reminder_id:
+            return False, "対象リマインダーIDが作成記録と一致しません", {}
+        if action == "delete" and case.get("status") != "取消":
+            return False, "削除できるのは予定が取り消された時だけです", {}
+        if action in {"update", "complete"} and case.get("status") != "決まった":
+            return False, "更新・完了は決まった予定だけです", {}
+        if action == "complete":
+            move = extra.get("move_status") if isinstance(extra.get("move_status"), dict) else {}
+            signals = move.get("signals", []) if isinstance(move.get("signals", []), list) else []
+            if not any(isinstance(signal, dict) and signal.get("type") == signal_type for signal in signals):
+                return False, "対応する出発・到着合図を受け取る前は完了にできません", {}
+        if action == "update":
+            if not isinstance(runtime, dict) or not runtime.get("location"):
+                return False, "更新する場所がありません", {}
+            expected_trigger = "leave" if signal_type == "出発" else "arrive"
+            notes = runtime.get("notes")
+            if runtime.get("trigger") != expected_trigger or not isinstance(notes, str) \
+                    or case.get("title") not in notes or "https://www.google.com/maps/dir/?api=1" not in notes:
+                return False, "更新内容の場所指定またはメモが正しくありません", {}
+        if action == "complete" and (runtime is not None or "location" in payload):
+            return False, "完了操作に場所データを含めません", {}
+        if action == "delete" and runtime is not None:
+            return False, "削除操作に場所データを含めません", {}
+
+    if any(payload.get(k) for k in SENDING_KEYS):
+        return False, "移動リマインダーは送信・招待を伴いません", {}
+    return True, "", {"grounds": MOVE_WATCH, "action": action,
+                       "signal_type": signal_type, "reminder_title": expected_title,
+                       "origin_reminder_op_id": origin_id, "notify_level": "なし"}
 
 
 def _setting(cfg: dict[str, Any], basis: dict[str, Any], key: str) -> Any:
@@ -705,6 +805,10 @@ def check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any], now: str | da
         exception_ok, reason, exception_meta = _departure_notice_check(ledger, cfg, op)
         if not exception_ok:
             return _deny(reason)
+    elif op.get("grounds") == MOVE_WATCH:
+        exception_ok, reason, exception_meta = _move_watch_check(ledger, cfg, op)
+        if not exception_ok:
+            return _deny(reason)
     elif op.get("grounds") is not None or op.get("basis") is not None:
         exception_ok, reason, exception_meta = _exception_check(ledger, cfg, op)
         if not exception_ok:
@@ -771,6 +875,9 @@ def check(ledger: Ledger, cfg: dict[str, Any], op: dict[str, Any], now: str | da
         out.update({"grounds": exception_meta["grounds"], "notify_level": exception_meta["notify_level"]})
         if exception_meta["grounds"] == DEPARTURE_NOTICE:
             out.update({"departure_action": exception_meta["action"]})
+        if exception_meta["grounds"] == MOVE_WATCH:
+            out.update({"move_watch_action": exception_meta["action"],
+                        "signal_type": exception_meta["signal_type"]})
         if exception_meta["grounds"] == SELF_RESOLVE:
             out.update({"self_resolve_kind": exception_meta["self_resolve_kind"],
                         "before": exception_meta["before"], "after": exception_meta.get("after")})
@@ -788,8 +895,12 @@ def result(ledger: Ledger, op_id: str, outcome: Any, readback_ok: bool | None,
         return {"ok": False, "op_id": op_id, "state": operation.get("state"), "reason": "操作は実行中ではありません"}
     prior_result = operation.get("result") if isinstance(operation.get("result"), dict) else {}
     departure_action = prior_result.get("action") if prior_result.get("grounds") == DEPARTURE_NOTICE else None
+    move_action = prior_result.get("action") if prior_result.get("grounds") == MOVE_WATCH else None
     if (outcome == "ok" and readback_ok is True and operation.get("kind") == "reminder"
             and departure_action in {"add", "update"} and not (isinstance(event_id, str) and event_id)):
+        state, reason = PENDING, "読み戻し済みリマインダーのIDがありません。照合してください"
+    elif (outcome == "ok" and readback_ok is True and operation.get("kind") == "reminder"
+          and move_action in {"add", "update"} and not (isinstance(event_id, str) and event_id)):
         state, reason = PENDING, "読み戻し済みリマインダーのIDがありません。照合してください"
     elif outcome == "ok" and readback_ok is True:
         state, reason = SUCCESS, "実物との読み戻しが一致しました"
@@ -806,8 +917,13 @@ def result(ledger: Ledger, op_id: str, outcome: Any, readback_ok: bool | None,
     if isinstance(event_id, str) and event_id and saved.get("grounds") == DEPARTURE_NOTICE \
             and saved.get("action") in {"add", "update"}:
         saved["reminder_id"] = event_id
+    if isinstance(event_id, str) and event_id and saved.get("grounds") == MOVE_WATCH \
+            and saved.get("action") in {"add", "update"}:
+        saved["reminder_id"] = event_id
     if state == SUCCESS and saved.get("grounds") == DEPARTURE_NOTICE and saved.get("action") == "delete":
         saved["deleted_at"] = at
+    if state == SUCCESS and saved.get("grounds") == MOVE_WATCH and saved.get("action") in {"delete", "complete"}:
+        saved["deleted_at" if saved["action"] == "delete" else "completed_at"] = at
     handoff = "渡し済み（未確認）" if operation.get("kind") == "send" else None
     ledger.set_op_state(op_id, state, handoff_state=handoff, result=saved, now=at)
     if state == SUCCESS and saved.get("grounds") == SELF_RESOLVE:
@@ -818,6 +934,14 @@ def result(ledger: Ledger, op_id: str, outcome: Any, readback_ok: bool | None,
         if origin and origin.get("state") == SUCCESS:
             origin_result = dict(origin.get("result") or {})
             origin_result["replaced_by_op_id" if saved.get("action") == "update" else "deleted_at"] = op_id if saved.get("action") == "update" else at
+            ledger.set_op_state(origin["op_id"], SUCCESS, result=origin_result, now=at)
+    if state == SUCCESS and saved.get("grounds") == MOVE_WATCH \
+            and saved.get("action") in {"update", "delete", "complete"}:
+        origin = ledger.get_op(saved.get("origin_reminder_op_id"))
+        if origin and origin.get("state") == SUCCESS:
+            origin_result = dict(origin.get("result") or {})
+            mark = {"update": "replaced_by_op_id", "delete": "deleted_at", "complete": "completed_at"}[saved["action"]]
+            origin_result[mark] = op_id if mark == "replaced_by_op_id" else at
             ledger.set_op_state(origin["op_id"], SUCCESS, result=origin_result, now=at)
     return {"ok": True, "op_id": op_id, "state": state, "reason": reason}
 
