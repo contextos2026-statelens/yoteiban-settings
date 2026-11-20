@@ -81,7 +81,7 @@ def import_jsonl(ledger, path):
             try:
                 item = json.loads(line)
                 asked, logged, scene = item["asked_at"], item["logged_at"], item["scene"]
-                if scene not in {"simple", "dialog", "multi"}:
+                if scene not in {"simple", "dialog", "multi", "express"}:
                     continue
                 started, ended = _dt(asked).isoformat(), _dt(logged).isoformat()
                 if _dt(ended) < _dt(started):

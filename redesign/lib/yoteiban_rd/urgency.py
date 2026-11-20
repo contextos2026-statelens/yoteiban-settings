@@ -45,6 +45,24 @@ def level_from_score(score: int) -> str:
     return "低"
 
 
+def is_express(urgency_result, action_deadline_minutes=None, travel_delay=False,
+               owner_event_minutes=None) -> bool:
+    """Return whether internal reply processing uses the express scene.
+
+    This is a pure decision helper: it does not read the network or write data.
+    """
+    tier = getattr(urgency_result, "tier", urgency_result)
+    if isinstance(urgency_result, dict):
+        tier = urgency_result.get("tier", urgency_result.get("urgency", urgency_result.get("段階", tier)))
+    if tier == "今すぐ":
+        return True
+    if tier == "今日中" and action_deadline_minutes is not None and 0 <= action_deadline_minutes <= 120:
+        return True
+    if travel_delay:
+        return True
+    return owner_event_minutes is not None and 0 <= owner_event_minutes <= 120
+
+
 @dataclass
 class Item:
     title: str
