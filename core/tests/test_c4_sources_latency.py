@@ -61,17 +61,20 @@ class SourceLatencyTests(unittest.TestCase):
              "scene": "simple", "adjustments": 1},
             {"asked_at": "2026-11-18T09:10:00+09:00", "logged_at": "2026-11-18T09:10:30+09:00",
              "scene": "dialog", "adjustments": 2},
+            {"asked_at": "2026-11-18T09:20:00+09:00", "logged_at": "2026-11-18T09:20:08+09:00",
+             "scene": "express", "adjustments": 1},
             {"asked_at": "bad", "logged_at": "bad", "scene": "simple", "adjustments": 1},
         ]
         with open(path, "w", encoding="utf-8") as f:
             for row in rows:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
-        self.assertEqual(latency_rec.import_jsonl(self.ledger, path), 2)
-        self.assertEqual(latency_rec.import_jsonl(self.ledger, path), 2)
-        self.assertEqual(self.ledger.conn.execute("select count(*) from latency").fetchone()[0], 2)
+        self.assertEqual(latency_rec.import_jsonl(self.ledger, path), 3)
+        self.assertEqual(latency_rec.import_jsonl(self.ledger, path), 3)
+        self.assertEqual(self.ledger.conn.execute("select count(*) from latency").fetchone()[0], 3)
         report = latency_rec.report(self.ledger, datetime.fromisoformat("2026-11-18T08:00:00+09:00"))
         self.assertEqual(report["legacy:simple"]["median_seconds"], 5.0)
         self.assertEqual(report["legacy:dialog"]["median_seconds"], 30.0)
+        self.assertEqual(report["legacy:express"]["median_seconds"], 8.0)
 
 
 if __name__ == "__main__":
