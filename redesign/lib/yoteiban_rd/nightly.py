@@ -33,6 +33,7 @@ INFO_EARLY_HEAVY_DAYS = 21
 HOUSEHOLD_ONLY_DAYS = 2  # 家用だけにある本人の予定を、明日・あさって分まで確かめる
 MISS_SUPPRESS_DAYS = 30
 MAX_SHOWN = 2  # 朝に出すのは2回まで。3回目は週次の一覧
+OCCASION_RESHOW_DAYS = 7  # 仮：機会を期日の7日前に1回だけ再掲
 _STOP = {"予定", "移動", "確認", "連絡", "日程", "時刻", "時間", "提出", "予約", "準備", "決める", "情報", "最終",
          "今日", "明日", "毎日", "毎週", "本人", "家族", "全員", "自宅"}
 
@@ -44,6 +45,7 @@ class Case:
     kind: str  # 予定あり / 確認待ち / 迷い / 締切 / 保留 / 返事待ち
     status: str = "open"  # open / done / dropped / paused
     due: datetime | None = None  # 期限か開始
+    next_review_at: datetime | None = None
     missing: list = field(default_factory=list)  # 欠けている項目（時刻・場所など）
     waiting_since: datetime | None = None
     goal: str | None = None  # 目的の一覧のどれに当たるか
@@ -168,7 +170,8 @@ def _attach_shift_and_alts(f: Finding, events: list[Event], now: datetime) -> No
 
 def review(cases: list[Case], events: list[Event], now: datetime, goals: list[str],
            horizon_days: int = HORIZON_DAYS, daily_load_limit_min: int | None = None,
-           previous: dict | None = None, feedback: dict | None = None, coverage: dict | None = None) -> dict:
+           previous: dict | None = None, feedback: dict | None = None, coverage: dict | None = None,
+           answers: dict | None = None, no_answer_days: int = 3) -> dict:
     horizon = now + timedelta(days=horizon_days)
     heavy_horizon = now + timedelta(days=max(HEAVY_DAYS, horizon_days))
     found: list[Finding] = []
@@ -230,7 +233,8 @@ def review(cases: list[Case], events: list[Event], now: datetime, goals: list[st
         if c.kind == "予定あり" and c.on_calendar and not c.missing:
             found.append(Finding("片付け", c.title, "もうカレンダーにある", "案件を閉じる（記録だけ）", None, [], 0, [c.id]))
             continue
-        if c.due and c.due < now and c.kind not in ("返事待ち",):
+        if c.due and c.due < now and c.kind not in ("返事待ち",) \
+                and (c.next_review_at is None or c.next_review_at <= now):
             found.append(Finding("過ぎた", c.title, "期日を過ぎたのに片付いていない",
                                  "済んだか聞いて閉じる", "これは済みましたか？", ["済んだ", "まだ", "やめた"], 2, [c.id],
                                  when=_d(c.due)))
@@ -299,28 +303,63 @@ def review(cases: list[Case], events: list[Event], now: datetime, goals: list[st
                 f.score += 1
     for f in found:
         f.key = _key(f)
-    return _replan(found, now, previous, feedback)
+    out = _replan(found, now, previous, feedback, answers or {})
+    if no_answer_days >= 3 and previous and (previous.get("morning") or previous.get("record_only")):
+        out["notes"] = ["カードを出した後、3日続けて答えの記録がありません。カードの回答記録を確認してください。"]
+    else:
+        out["notes"] = []
+    table_rows = [{"日付": f.get("when") or "日付なし", "件名": f["title"],
+                   "何があるか": f["proposal"], "出どころ": "毎晩の台帳"}
+                  for f in out["record_only"] if f.get("score", 0) > 0]
+    out["second_message_markdown"] = format_second_message(table_rows) if table_rows else None
+    return out
 
 
-def _replan(found: list[Finding], now: datetime, previous: dict | None, feedback: dict | None) -> dict:
+def _replan(found: list[Finding], now: datetime, previous: dict | None, feedback: dict | None, answers: dict | None = None) -> dict:
     prev_shown = {}
     prev_keys = set()
     if previous:
-        for f in previous.get("morning", []):
+        for f in previous.get("morning", []) + previous.get("record_only", []):
             prev_shown[f["key"]] = f.get("shown", 1)
         for k in ("morning", "record_only", "weekly", "suppressed"):
             for f in previous.get(k, []):
                 prev_keys.add(f["key"])
     fb = feedback or {}
+    answers = answers or {}
     weekly, suppressed = [], []
     candidates = []
     for f in found:
         v = fb.get(f.key) or {}
+        answer = answers.get(f.key)
+        resurfaced_now = False
+        if answer:
+            if answer.get("answer") in {"当たり", "外れ", "まだ分からない"}:
+                pass  # Preserve the existing feedback handling below.
+            else:
+            # Resurface occasion findings once inside the configured window; callers persist the marker.
+                shown_after_answer = False
+                if previous and previous.get("at") and answer.get("answered_at"):
+                    try:
+                        shown_after_answer = _p(previous["at"]) > _p(answer["answered_at"])
+                    except (TypeError, ValueError):
+                        shown_after_answer = True
+                if f.kind != "機会" or answer.get("resurfaced") or shown_after_answer or not f.when:
+                    continue
+                try:
+                    days_left = (date.fromisoformat(f.when) - now.astimezone(JST).date()).days
+                except ValueError:
+                    continue
+                if not 0 <= days_left <= OCCASION_RESHOW_DAYS:
+                    continue
+                answer["resurfaced"] = True
+                resurfaced_now = True
         if f.key in prev_keys:
             f.status = "続き"
         if v.get("verdict") == "外れ" and v.get("at") and now - _p(v["at"]) <= timedelta(days=MISS_SUPPRESS_DAYS):
             f.why += "（「外れ」と言われたので30日は朝に出さない）"
             suppressed.append(f)
+            continue
+        if answer and not resurfaced_now:
             continue
         n = prev_shown.get(f.key, 0)
         answered = bool(v.get("verdict")) or bool(v.get("answered"))
@@ -335,9 +374,9 @@ def _replan(found: list[Finding], now: datetime, previous: dict | None, feedback
         candidates.append(f)
     candidates.sort(key=lambda f: (-f.score, f.when or "9999"))
     morning = [f for f in candidates if f.score > 0][:MAX_MORNING]
-    for f in morning:
-        f.shown = prev_shown.get(f.key, 0) + 1
     rest = [f for f in candidates if f not in morning]
+    for f in morning + rest:
+        f.shown = prev_shown.get(f.key, 0) + 1
     now_keys = {f.key for f in found}
     resolved = sorted(k for k in prev_keys if k not in now_keys)
     out = {"at": fmt(now), "morning": [asdict(f) for f in morning], "record_only": [asdict(f) for f in rest],
@@ -346,6 +385,8 @@ def _replan(found: list[Finding], now: datetime, previous: dict | None, feedback
                     "続き": [f.title for f in morning + rest if f.status in ("続き", "上げた")],
                     "片付いた": resolved}}
     out["feedback_card"] = feedback_card(previous, fb)
+    out["action_requests"] = [{"key": key, "requested": True} for key, value in answers.items()
+                              if value.get("answer") == "出して"]
     return out
 
 
@@ -477,6 +518,16 @@ def plan_steps(c: Case, now: datetime, events: list[Event], slot_min: int = 60) 
 
 def _is_occasion(title: str) -> bool:
     return any(k in title for k in ("誕生日", "記念日", "お祝い"))
+
+
+def format_second_message(rows: list[dict]) -> str:
+    """Format the morning follow-up as a strict Markdown table."""
+    headers = ("日付", "件名", "何があるか", "出どころ")
+    lines = ["| " + " | ".join(headers) + " |", "|---|---|---|---|"]
+    for row in rows:
+        cells = [str(row.get(k, "")).replace("|", "\\|").replace("\n", " ") for k in headers]
+        lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines)
 
 
 # ---- 毎日の当たり・外れの記録（箱の状態の置き場に1行ずつ足す。消さない） ----

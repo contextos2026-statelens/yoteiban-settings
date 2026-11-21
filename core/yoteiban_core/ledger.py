@@ -32,7 +32,7 @@ CASE_TRANSITIONS = {
     "提案前": {"未確定", "見送り", "取消"},
     "未確定": {"保留", "確認中", "見送り", "取消"},
     "保留": {"未確定", "見送り", "取消"},
-    "確認中": {"承認待ち", "返事なし", "見送り", "取消"},
+    "確認中": {"承認待ち", "返事なし", "済んだ", "見送り", "取消"},
     "返事なし": {"確認中", "承認待ち", "見送り", "取消"},
     "承認待ち": {"承認済み", "返事なし", "見送り", "取消"},
     "承認済み": {"実行中", "見送り", "取消"},
@@ -137,6 +137,69 @@ class Ledger:
     def get_case(self, case_id):
         row = self.conn.execute("SELECT * FROM cases WHERE case_id=?", (case_id,)).fetchone()
         return dict(row) if row else None
+
+    def record_card_answer(self, card_key, answer, answered_at, review_days=None, case_id=None, question_id=None):
+        """Record one card answer idempotently and apply supported case changes."""
+        allowed = {"出して", "いらない", "済んだ", "まだ", "やめた", "当たり", "外れ", "まだ分からない"}
+        if not card_key or answer not in allowed:
+            raise SchemaError("card_key または answer が不正です")
+        at = _now(answered_at)
+        if review_days is None:
+            review_days = self.get_setting("answer_still_review_days", 3)  # 仮の既定値
+        with self.tx():
+            self.conn.execute(
+                "INSERT OR IGNORE INTO card_answers(card_key,answer,answered_at,case_id,question_id) VALUES(?,?,?,?,?)",
+                (card_key, answer, at, case_id, question_id))
+            inserted = self.conn.execute("SELECT changes()").fetchone()[0] == 1
+            case = None
+            if case_id and answer in {"済んだ", "まだ", "やめた"}:
+                case = self.get_case(case_id)
+                if case is None:
+                    raise KeyError(case_id)
+                patch = {}
+                if answer == "済んだ": patch["status"] = "済んだ"
+                elif answer == "やめた": patch["status"] = "見送り"
+                else:
+                    from datetime import datetime
+                    base = datetime.fromisoformat(at)
+                    patch["next_review_at"] = (base + timedelta(days=int(review_days))).isoformat()
+                if inserted or any(case.get(k) != v for k, v in patch.items()):
+                    self.upsert_case({"case_id": case_id, **patch}, expected_version=case["version"], actor="本人",
+                                     reason="カードの答え", basis=at, now=at)
+                case = self.get_case(case_id)
+            if question_id and inserted:
+                question_status = "聞き中" if answer == "まだ" else "埋められない" if answer == "やめた" else "埋まった"
+                self.set_question(question_id, question_status, answer=answer, now=at, actor="本人", reason="カードの答え")
+            readback = self.conn.execute("SELECT * FROM card_answers WHERE card_key=?", (card_key,)).fetchone()
+            question_row = self.conn.execute("SELECT * FROM questions WHERE q_id=?", (question_id,)).fetchone() if question_id else None
+            return {"ok": bool(readback), "inserted": inserted, "answer": dict(readback) if readback else None,
+                    "case": case, "question": dict(question_row) if question_row else None}
+
+    def list_card_answers(self):
+        rows = self.conn.execute("SELECT * FROM card_answers ORDER BY answered_at,card_key").fetchall()
+        return [dict(r) for r in rows]
+
+    def record_card_presentations(self, card_keys, shown_on):
+        day = str(shown_on)[:10]
+        with self.tx():
+            self.conn.executemany("INSERT OR IGNORE INTO card_presentations(card_key,shown_on) VALUES(?,?)",
+                                  [(key, day) for key in sorted(set(card_keys)) if key])
+
+    def unanswered_presentation_streak(self, through_day):
+        """Number of consecutive recent presentation days with zero answers (max 3)."""
+        day = str(through_day)[:10]
+        streak = 0
+        from datetime import date, timedelta
+        for offset in range(3):
+            current = (date.fromisoformat(day) - timedelta(days=offset)).isoformat()
+            shown = self.conn.execute("SELECT COUNT(*) FROM card_presentations WHERE shown_on=?", (current,)).fetchone()[0]
+            if not shown:
+                break
+            answered = self.conn.execute("SELECT COUNT(*) FROM card_presentations p JOIN card_answers a ON a.card_key=p.card_key AND substr(a.answered_at,1,10)=p.shown_on WHERE p.shown_on=?", (current,)).fetchone()[0]
+            if answered:
+                break
+            streak += 1
+        return streak
 
     def list_cases(self, status_in=None):
         if status_in is None:
