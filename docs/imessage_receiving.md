@@ -37,4 +37,4 @@ Linqのchat list / chat retrieve APIはチャットID、`is_group`、handlesと�
 
 ## 連携ボット発言の除外
 
-`config.json` の `relay_bots` は空配列を既定とする。利用者がprivate configにボットごとの `label`、`sender_handles`、`call_markers`、`reply_markers`、`owner`（`self` / `family`）を設定した場合だけ働く。呼びかけ印は本文先頭のみ、発言印は本文内、送り主は識別子一致で判定する。分類されたイベントはsorter・AI・受け口へ送らず、状態DBに種別ごとの累計件数だけを保存する。印が設定されていない場合、通常の取り込みに影響しない。特定の印や相手の識別子をソースコードへ固定しない。
+`config.json` の `relay_bots` は空配列を既定とする。利用者がprivate configにボットごとの `label`、`sender_handles`、`call_markers`、`reply_markers`、`owner`（`self` / `family`）を設定した場合だけ働く。呼びかけ印も発言印も本文の先頭だけで見る。送り主は識別子一致で判定する。分類されたイベントはsorter・AI・受け口へ送らず、状態DBに種別ごとの累計件数だけを保存する。印が設定されていない場合、通常の取り込みに影響しない。特定の印や相手の識別子をソースコードへ固定しない。
