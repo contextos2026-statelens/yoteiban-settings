@@ -1,0 +1,16 @@
+{
+  "bundle_version": "1.0.43",
+  "files": {
+    "SPEC.md": "a0147fde9bb12889147889ce4c016225124e6e4a30ba6e3bed5b2d5b43f8978d",
+    "APPLY.md": "d4b2b502935e79c117b4414c6457fcb5760f30031dcd668cdf9c8bfebbfdf6c4",
+    "ROLLBACK.md": "500e7f656522d752210cd2cfb7cd558b0202730db82a8ddda519c210e1b17bfb",
+    "RESULT.schema.json": "eb47e7c780d64f564e4817dbfca17ad32c049dd88bf5041d6feed9100f3da30d"
+  },
+  "preserve": [
+    "configuration",
+    "secrets",
+    "history",
+    "processed_message_ids"
+  ],
+  "verification": "SHA-256 for each file; regenerate after bundle edits"
+}

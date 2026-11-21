@@ -191,6 +191,9 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
                                   authorization_header=os.environ.get("YOTEIBAN_WEBHOOK_AUTH"))
                     store.set_state(rid, res["state"], wake_status=res, attempt=True)
                     log(cfg, {"request_id": rid, "source": source, "state": res["state"],
+                              "delivery_state": res.get("delivery_state", "unknown"),
+                              "registration_state": res.get("registration_state", "unknown"),
+                              "detail_code": res.get("detail_code", ""),
                               "chars": len(body_text), "attempts": res.get("attempts", 0)})
             else:
                 store.set_state(rid, "朝へ" if r.decision == MORNING else "何もしない")

@@ -22,7 +22,27 @@ DEFAULT_MAX_BODY_CHARS = 8000
 
 def _result(ok=False, request_id=None, input_id=None, created=False, reason="", signed_by=None):
     return {"ok": bool(ok), "request_id": request_id, "input_id": input_id,
-            "created": bool(created), "reason": reason, "signed_by": signed_by}
+            "created": bool(created), "reason": reason, "signed_by": signed_by,
+            "detail_code": "OK" if ok else _detail_code(reason)}
+
+
+def _detail_code(reason: str) -> str:
+    text = str(reason or "")
+    if "署名" in text or "鍵" in text:
+        return "SIGNATURE_INVALID"
+    if "JSON" in text or "JSON" in text.upper():
+        return "PAYLOAD_INVALID"
+    if "request_id" in text:
+        return "REQUEST_ID_INVALID"
+    if "時刻" in text:
+        return "TIMESTAMP_INVALID"
+    if "source" in text or "native_ref" in text:
+        return "SOURCE_REFERENCE_INVALID"
+    if "本文" in text:
+        return "BODY_INVALID"
+    if "kind" in text:
+        return "KIND_INVALID"
+    return "INTAKE_REJECTED"
 
 
 def _header(headers, name):

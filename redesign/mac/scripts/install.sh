@@ -5,19 +5,33 @@ MAC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$HOME/yoteiban-watch"
 AGENTS="$HOME/Library/LaunchAgents"
 TEMPLATE="$MAC_DIR/launchd.plist.template"
-if [[ -n "${YOTEIBAN_PYTHON:-}" ]]; then
-  PYTHON_BIN="$YOTEIBAN_PYTHON"
-elif [[ -x "$DEST/venv/bin/python" ]]; then
-  PYTHON_BIN="$DEST/venv/bin/python"
-else
-  PYTHON_BIN="$(command -v python3)"
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo 'dry-run: watcher/clockのアプリ更新、設定ファイルの初回作成、plist生成、launchd再登録を行う予定です。変更はありません。'
+  exit 0
 fi
+PYTHON_BIN="$(bash "$MAC_DIR/scripts/select_python.sh" "$DEST")"
 WATCH_LABEL="com.yoteiban.watch"
 CLOCK_LABEL="com.yoteiban.clock"
 DOMAIN="gui/$(id -u)"
 
-mkdir -p "$DEST/app" "$DEST/state" "$AGENTS"
+mkdir -p "$DEST/app" "$DEST/state" "$DEST/state/backups" "$AGENTS"
+STAMP="$(date +%Y%m%d%H%M%S)"
+if [[ -d "$DEST/app/yoteiban_watch" ]]; then
+  cp -R "$DEST/app/yoteiban_watch" "$DEST/state/backups/yoteiban_watch-$STAMP"
+fi
+if [[ -d "$DEST/app/yoteiban_core" ]]; then
+  cp -R "$DEST/app/yoteiban_core" "$DEST/state/backups/yoteiban_core-$STAMP"
+fi
+for old in "$AGENTS/$WATCH_LABEL.plist" "$AGENTS/$CLOCK_LABEL.plist"; do
+  if [[ -f "$old" ]]; then cp -p "$old" "$DEST/state/backups/$(basename "$old").$STAMP"; fi
+done
 cp -R "$MAC_DIR/yoteiban_watch" "$DEST/app/"
+cp -R "$MAC_DIR/../../core/yoteiban_core" "$DEST/app/"
+mkdir -p "$DEST/app/scripts"
+cp "$MAC_DIR/scripts/select_python.sh" "$DEST/app/scripts/select_python.sh"
+chmod 700 "$DEST/app/scripts/select_python.sh"
+printf '%s\n' "$PYTHON_BIN" > "$DEST/state/python-path"
+chmod 600 "$DEST/state/python-path"
 if [[ ! -e "$DEST/config.json" ]]; then
   cp "$MAC_DIR/config.example.json" "$DEST/config.json"
 fi
@@ -54,6 +68,8 @@ WATCH_PLIST="$AGENTS/$WATCH_LABEL.plist"
 CLOCK_PLIST="$AGENTS/$CLOCK_LABEL.plist"
 render_plist "$WATCH_LABEL" "" "watch" "$WATCH_PLIST"
 render_plist "$CLOCK_LABEL" "--clock-only" "clock" "$CLOCK_PLIST"
+
+plutil -lint "$WATCH_PLIST" "$CLOCK_PLIST" >/dev/null
 
 launchctl bootout "$DOMAIN/$WATCH_LABEL" >/dev/null 2>&1 || true
 launchctl bootout "$DOMAIN/$CLOCK_LABEL" >/dev/null 2>&1 || true

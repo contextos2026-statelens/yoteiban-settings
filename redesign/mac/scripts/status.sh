@@ -3,13 +3,7 @@ set -euo pipefail
 
 DEST="$HOME/yoteiban-watch"
 DOMAIN="gui/$(id -u)"
-if [[ -n "${YOTEIBAN_PYTHON:-}" ]]; then
-  PYTHON_BIN="$YOTEIBAN_PYTHON"
-elif [[ -x "$DEST/venv/bin/python" ]]; then
-  PYTHON_BIN="$DEST/venv/bin/python"
-else
-  PYTHON_BIN="$(command -v python3)"
-fi
+PYTHON_BIN="$(bash "$(dirname "${BASH_SOURCE[0]}")/select_python.sh" "$DEST")"
 printf 'Python: %s\n' "$PYTHON_BIN"
 for LABEL in com.yoteiban.watch com.yoteiban.clock; do
   if launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; then
@@ -18,16 +12,27 @@ for LABEL in com.yoteiban.watch com.yoteiban.clock; do
     printf '%s: 停止中\n' "$LABEL"
   fi
 done
+if [[ -f "$DEST/reminder_reader/run.sh" ]]; then
+  printf 'reminder reader: installer files present (login item state requires System Settings check)\n'
+else
+  printf 'reminder reader: not installed\n'
+fi
 "$PYTHON_BIN" - "$DEST/state" <<'PY'
 import json, pathlib, sqlite3, sys
 state = pathlib.Path(sys.argv[1])
-for name in ("watch", "clock"):
+for name in ("watch", "clock", "reader"):
     p = state / f"heartbeat_{name}.json"
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
         print(f"{name} 最終心拍: {data.get('at', '不明')} (ok={data.get('ok', False)})")
     except (OSError, ValueError):
         print(f"{name} 最終心拍: まだありません")
+try:
+    cfg = json.loads((state.parent / "config.json").read_text(encoding="utf-8"))
+    print("reader 心拍: " + ("個別" if cfg.get("reader_heartbeat_url") else
+          "共用" if cfg.get("heartbeat_url") else "未設定"))
+except (OSError, ValueError):
+    print("reader 心拍: 設定未確認")
 db = state / "watch.db"
 try:
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
