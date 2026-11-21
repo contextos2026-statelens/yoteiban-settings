@@ -26,9 +26,18 @@ class Store:
             " updated_at real)")
         self.db.execute("create table if not exists cursors(source text primary key, value text)")
         self.db.execute("create table if not exists meter(month text primary key, yen real)")
+        self.db.execute("create table if not exists filtered_event_counts(kind text primary key, count integer not null default 0)")
         self.db.execute("create table if not exists clock_sent(case_id text, due_at text, primary key(case_id, due_at))")
         self.db.execute("create table if not exists clock_shadow_sent(case_id text, due_at text, primary key(case_id, due_at))")
         self.db.commit()
+
+    def count_filtered_event(self, kind: str) -> int:
+        if kind not in {"relay_bot_call", "relay_bot_message", "self_relay_bot_notice"}:
+            raise ValueError("unknown filtered event kind")
+        self.db.execute("insert into filtered_event_counts(kind,count) values(?,1) "
+                        "on conflict(kind) do update set count=count+1", (kind,))
+        self.db.commit()
+        return int(self.db.execute("select count from filtered_event_counts where kind=?", (kind,)).fetchone()[0])
 
     def has_clock_sent(self, case_id: str, due_at: str) -> bool:
         return self.db.execute("select 1 from clock_sent where case_id=? and due_at=?", (case_id, due_at)).fetchone() is not None

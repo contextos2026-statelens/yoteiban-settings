@@ -19,6 +19,7 @@ from .store import Store
 from .waker import wake
 from .heartbeat import ping as heartbeat_ping
 from .clock import catch_up as clock_catch_up, fetch_due, tick as clock_tick
+from yoteiban_core.relay_bot_filter import classify_relay_bot
 
 _stop = False
 
@@ -151,6 +152,14 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
     for source, items, new_cursor in batches:
         for inc in items:
             stats["read"] += 1
+            # chat.dbには本人の送信も含まれる。入力として処理しない。
+            if inc.from_me:
+                continue
+            relay_kind = classify_relay_bot(inc.text, inc.sender, cfg.get("relay_bots", []))
+            if relay_kind:
+                store.count_filtered_event(relay_kind)
+                stats.setdefault("filtered_counts", {})[relay_kind] = stats.setdefault("filtered_counts", {}).get(relay_kind, 0) + 1
+                continue  # 本文は台帳・AI・受け口へ渡さない
             role = role_of(cfg, inc)
             rid, created = store.add(source, inc.native_id, role)
             if not created:

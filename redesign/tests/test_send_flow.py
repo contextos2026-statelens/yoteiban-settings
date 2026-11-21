@@ -1,6 +1,6 @@
 import json, os, subprocess, sys, tempfile, unittest
 import _paths  # noqa
-from yoteiban_rd.send_flow import SendFlow, SendFlowError
+from yoteiban_rd.send_flow import SendFlow, SendFlowError, resolve_send_prefix
 
 AT = "2026-11-20 10:00 JST"
 
@@ -10,7 +10,8 @@ class SendFlowTest(unittest.TestCase):
     def setUp(self):
         self.d = tempfile.TemporaryDirectory()
         self.store = os.path.join(self.d.name, "deleg.json")
-        self.f = SendFlow(_paths.DELEGATION_PY, self.store, actor="test")
+        self.prefix = "【〈fixture〉の予定ばんからのメッセージです】"
+        self.f = SendFlow(_paths.DELEGATION_PY, self.store, actor="test", required_prefix=self.prefix)
 
     def tearDown(self):
         self.d.cleanup()
@@ -20,7 +21,7 @@ class SendFlowTest(unittest.TestCase):
                 "--valid-from", "2026-11-01 00:00 JST", "--valid-until", "2026-11-30 23:59 JST"]
         args.append("--send-allowed" if send_allowed else "--no-send-allowed")
         self.assertEqual(self.f._run(*args)["_rc"], 0)
-        t = ["add-template", "--template-id", "tp1", "--delegation-id", "dg1", "--body", "{date}の予定はどうですか？",
+        t = ["add-template", "--template-id", "tp1", "--delegation-id", "dg1", "--body", self.prefix + "\n{date}の予定はどうですか？",
              "--allowed-vars", json.dumps({"date": ["11/22"]})]
         if approve:
             t.append("--approve")
@@ -70,6 +71,18 @@ class SendFlowTest(unittest.TestCase):
     def test_missing_tool(self):
         with self.assertRaises(SendFlowError):
             SendFlow("/nonexistent/delegation.py", self.store)
+
+    def test_send_prefix_is_required_in_draft_before_approval(self):
+        self.setup_deleg()
+        self.f.required_prefix = "【別の予定ばんからのメッセージです】"
+        with self.assertRaises(SendFlowError):
+            self.prep()
+
+    def test_default_prefix_uses_private_nickname_and_no_unresolved_placeholder(self):
+        self.assertEqual(resolve_send_prefix("【〈呼び名〉の予定ばんからのメッセージです】", "fixture"),
+                         "【fixtureの予定ばんからのメッセージです】")
+        with self.assertRaises(SendFlowError):
+            resolve_send_prefix("【〈呼び名〉の予定ばんからのメッセージです】", "")
 
 
 if __name__ == "__main__":

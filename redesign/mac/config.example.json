@@ -3,12 +3,15 @@
   "state_dir": "~/yoteiban-watch/state",
   "interval_s": 3,
   "max_body_chars": 8000,
+  "relay_bots": [],
+  "_relay_bot_entry_example": {"label": "<連携ボットの呼び名>", "sender_handles": [], "call_markers": [], "reply_markers": [], "owner": "self"},
   "resend_backoff_s": [30, 120, 600, 1800],
   "heartbeat_url": "",
   "shadow": true,
   "webhook_url": "",
   "sources": {
-    "imessage": {"enabled": true, "db_path": "~/Library/Messages/chat.db", "start_rowid": 0},
+    "imessage": {"enabled": false, "db_path": "~/Library/Messages/chat.db", "start_rowid": 0},
+    "linq": {"enabled": false, "event_source": "authenticated webhook adapter", "owner_handle_env": "YOTEIBAN_LINQ_OWNER_HANDLE", "owner_handles_env": "YOTEIBAN_IMESSAGE_OWNER_HANDLES"},
     "gmails": [
       {"name": "<入口の名前（例：家用メール）>", "enabled": false, "cmd": ["gog", "--enable-commands", "gmail", "-j", "--results-only", "-a", "<読むアカウント>", "gmail", "search", "newer_than:1d"]}
     ],

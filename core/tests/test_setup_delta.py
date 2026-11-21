@@ -50,10 +50,29 @@ class CatalogTests(unittest.TestCase):
         catalog = sd.load_catalog()
         self.assertEqual(catalog["baseline_version"], "1.0.28")
         self.assertTrue(any(r["version"] == "1.0.29" for r in catalog["releases"]))
-        self.assertEqual(
-            next(r for r in catalog["releases"] if r["version"] == "1.0.29")["added_question_ids"],
-            [],
-        )
+
+    def test_conditional_imessage_questions_wait_for_answers_and_follow_branches(self):
+        catalog = sd.load_catalog()
+        questions = [q for q in catalog["questions"] if q["added_in"] == "1.0.42"
+                     and q["id"] != "send_prefix"]
+        self.assertEqual([q["id"] for q in sd.pending_questions(questions, {})], ["imessage_use"])
+        self.assertEqual(sd.pending_questions(questions, {"予定ばんでiMessageを使う":"使わない"}), [])
+        mac = {"予定ばんでiMessageを使う":"使う", "iMessageを設定したMacがある":"ある"}
+        self.assertEqual([q["id"] for q in sd.pending_questions(questions, mac)],
+                         ["imessage_mac_receive", "imessage_linq_use"])
+        mac["MacのチャットDB受信を使う"] = "使う"
+        self.assertEqual([q["id"] for q in sd.pending_questions(questions, mac)],
+                         ["imessage_privacy_consent", "imessage_linq_use"])
+        mac["MacのチャットDB受信を使う"] = "使わない"
+        mac["iMessage連携ボットを利用している"] = "使っていない"
+        self.assertEqual([q["id"] for q in sd.pending_questions(questions, mac)], [])
+        linq = {**mac, "iMessage連携ボットを利用している":"使っている"}
+        self.assertEqual([q["id"] for q in sd.pending_questions(questions, linq)], ["imessage_linq_receive"])
+        linq["連携ボット経由のメッセージを予定ばんで受け取る"] = "受け取る"
+        self.assertEqual([q["id"] for q in sd.pending_questions(questions, linq)],
+                         ["imessage_privacy_consent", "relay_bot_markers"])
+        self.assertEqual([q["id"] for q in sd.pending_questions(
+            [q for q in catalog["questions"] if q["id"] == "send_prefix"], {})], ["send_prefix"])
 
     def test_empty_delta_for_1_0_29(self):
         catalog = sd.load_catalog()

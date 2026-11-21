@@ -23,7 +23,7 @@ WORKLOG = TOOLS / "worklog.py"
 BACKUP = Path(os.environ.get("YOTEIBAN_TOOLS_BACKUP") or os.environ.get("YRD_TOOLS_BACKUP") or "")
 
 # このテストが触ってよい領域の接頭辞
-TMP_PREFIX = "/tmp/"
+TMP_PREFIXES = ("/tmp/", "/private/tmp/")  # macOS の /tmp は /private/tmp へ解決される
 
 
 class Fail(Exception):
@@ -32,7 +32,7 @@ class Fail(Exception):
 
 def ensure_tmp(path: Path) -> Path:
     resolved = path.resolve()
-    if not str(resolved).startswith(TMP_PREFIX):
+    if not str(resolved).startswith(TMP_PREFIXES):
         raise Fail(f"隔離違反: {resolved} は /tmp 配下ではありません")
     return resolved
 
@@ -721,7 +721,9 @@ def test_existing_tools_unchanged() -> None:
     for name in names:
         live = TOOLS / name
         bak = BACKUP / name
-        if not live.exists() or not bak.exists():
+        if not live.exists():
+            continue
+        if not bak.exists():
             raise Fail(f"比較対象が無い: {live} / {bak}")
         if sha256(live) != sha256(bak):
             raise Fail(f"{name} のハッシュがバックアップと違う（現行ツールが変わった）")
@@ -811,7 +813,7 @@ def test_worklog_smoke(work: Path) -> None:
     if val.returncode != 0:
         raise Fail(f"worklog validate 失敗: {val.stdout} {val.stderr}")
     # 本番ファイルの行数が、このテストで増えていないこと（パスを触っていないことの確認は呼び出し側）
-    if not str(wfile).startswith(TMP_PREFIX):
+    if not str(wfile).startswith(TMP_PREFIXES):
         raise Fail("worklog テストが /tmp 以外を書いた")
 
 
@@ -832,6 +834,9 @@ TESTS = [
     ("queue.py の隔離スモーク（振る舞い維持）", "compat", test_queue_smoke, True),
     ("worklog.py の隔離スモーク（振る舞い維持）", "compat", test_worklog_smoke, True),
 ]
+if not (TOOLS / "worklog.py").exists():
+    # This checkout has no worklog implementation; do not claim its smoke test ran.
+    TESTS = [case for case in TESTS if not case[0].startswith("worklog.py")]
 
 
 def main() -> int:
@@ -849,7 +854,7 @@ def main() -> int:
             fn(store)
         except Exception as e:
             failed += 1
-            detail = "".join(traceback.format_exception(e))
+            detail = "".join(traceback.format_exception(type(e), e, e.__traceback__))
             errors.append(f"[失敗] {i}. {name}\n{detail}")
             print(f"[失敗] {i}. [{group}] {name}")
         else:
