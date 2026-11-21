@@ -20,7 +20,8 @@ class RelayBotFilterTests(unittest.TestCase):
         ]
         self.assertEqual(classify_relay_bot("SELF_CALL task", "other", config), "relay_bot_call")
         self.assertEqual(classify_relay_bot("FAMILY_CALL task", "other", config), "relay_bot_call")
-        self.assertEqual(classify_relay_bot("normal SELF_REPLY", "other", config), "relay_bot_message")
+        self.assertIsNone(classify_relay_bot("normal SELF_REPLY", "other", config))
+        self.assertEqual(classify_relay_bot("SELF_REPLY normal", "other", config), "relay_bot_message")
         self.assertEqual(classify_relay_bot("ordinary", "self-id", config), "self_relay_bot_notice")
         self.assertEqual(classify_relay_bot("ordinary", "family-id", config), "relay_bot_message")
 

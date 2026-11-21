@@ -9,10 +9,13 @@ spec.loader.exec_module(mod)
 
 
 class RelayBotUpdateTests(unittest.TestCase):
-    def test_request_is_draft_only(self):
-        draft = mod.request_text("1.0.43", "fixture configuration")
+    def test_request_always_starts_with_configured_intro(self):
+        draft = mod.request_text("1.0.43", "fixture configuration", "fixture nickname")
+        self.assertTrue(draft.startswith("【fixture nicknameの予定ばんからのメッセージです】\n"))
         self.assertIn("送信前に本人へ表示", draft)
         self.assertIn("送信も適用も行いません", draft)
+        with self.assertRaises(ValueError):
+            mod.request_text("1.0.43", "fixture configuration", "")
 
     def test_result_counts_are_checked(self):
         result = {"bundle_version": "1.0.43", "target_version": "fixture", "result": "success",

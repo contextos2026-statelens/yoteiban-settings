@@ -8,8 +8,13 @@ import json
 import sys
 from pathlib import Path
 
-def request_text(version: str, capabilities: str) -> str:
-    return ("更新確認の依頼案（送信前に本人へ表示）\n"
+def request_text(version: str, capabilities: str, nickname: str) -> str:
+    nickname = str(nickname or "").strip()
+    if not nickname or "\n" in nickname or "\r" in nickname:
+        raise ValueError("nickname is required for the outgoing introduction")
+    prefix = f"【{nickname}の予定ばんからのメッセージです】"
+    return (prefix + "\n"
+            "更新確認の依頼案（送信前に本人へ表示）\n"
             f"対象バージョン: {version}\n"
             f"確認したい構成・更新権限: {capabilities}\n"
             "この依頼案の作成だけでは送信も適用も行いません。")
@@ -64,6 +69,8 @@ def main() -> int:
     req = sub.add_parser("request")
     req.add_argument("--version", required=True)
     req.add_argument("--capabilities", required=True)
+    req.add_argument("--nickname", required=True,
+                     help="記憶にある呼び名。Gitや共有ログへ渡さない")
     result = sub.add_parser("validate-result")
     result.add_argument("file", type=Path)
     verify = sub.add_parser("verify-manifest")
@@ -71,7 +78,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "request":
-            print(request_text(args.version, args.capabilities))
+            print(request_text(args.version, args.capabilities, args.nickname))
         elif args.command == "validate-result":
             print(json.dumps(validate_result(json.loads(args.file.read_text())), ensure_ascii=False))
         else:

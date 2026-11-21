@@ -181,6 +181,21 @@ def handle(ledger, cfg, headers, body_bytes, now, secret):
     if not isinstance(sender_role, str):
         return _result(request_id=request_id, reason="sender_role が不正です", signed_by=signed_by)
 
+    # Generic relay-bot filtering at intake is a second guard after the Mac
+    # watcher. Only message sources are considered; excluded bodies never reach
+    # the ledger, mask pipeline, or a downstream candidate.
+    if (isinstance(source, str) and (source == "imessage" or source.startswith("imessage:") or
+            source == "linq" or source.startswith("linq:"))):
+        from .relay_bot_filter import classify_relay_bot
+        relay_kind = classify_relay_bot(body_text, payload.get("sender_handle", ""),
+                                        cfg.get("relay_bots", []))
+        if relay_kind:
+            result = _result(True, request_id, None, False,
+                             reason="configured relay-bot event filtered", signed_by=signed_by)
+            result["detail_code"] = "RELAY_BOT_FILTERED"
+            result["filtered_kind"] = relay_kind
+            return result
+
     # 読み取り係に渡す本文だけを伏せ字化する。伏せ字機能が無い場合や
     # 消し残しが検出された場合は空にし、後段でボット自身が読む。
     body_masked = ""

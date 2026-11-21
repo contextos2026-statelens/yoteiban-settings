@@ -178,6 +178,7 @@ def poll_once(cfg: dict, store: Store, ai: AIClient | None, shadow: bool, wake_f
                            "sort": {"by": r.by, "related": r.related, "urgent": r.urgent, "to_owner": r.to_owner},
                            "received_at": inc.at, "kind": "yoteiban-wake",
                            "title": str(inc.extra.get("subject") or inc.extra.get("summary") or "")[:300],
+                           "is_group": bool(inc.is_group), "sender_handle": inc.sender,
                            "body_text": body_text}
                 if len(inc.text or "") > max_body_chars:
                     payload["truncated"] = True
