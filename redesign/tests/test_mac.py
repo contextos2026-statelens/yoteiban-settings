@@ -331,6 +331,27 @@ class InstallAssetsTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class RelayBotFilterRunTest(unittest.TestCase):
+    def test_configured_relay_bot_messages_are_counted_but_never_ingested(self):
+        with tempfile.TemporaryDirectory() as d:
+            db = os.path.join(d, "chat.db")
+            make_chatdb(db, [(1, "CALL_MARKER private call text", None, 0, 0, 1),
+                             (2, "ordinary REPLY_MARKER private reply", None, 0, 0, 1),
+                             (3, "bot ordinary text", None, 0, 0, 2),
+                             (4, "ordinary CALL_MARKER in the middle", None, 0, 0, 1),
+                             (5, "unmarked request for tomorrow", None, 0, 0, 1)])
+            cfg = {"state_dir": d, "sources": {"imessage": {"enabled": True, "db_path": db}},
+                   "relay_bots": [{"label": "<fixture>", "sender_handles": ["h-unknown"],
+                                   "call_markers": ["CALL_MARKER"], "reply_markers": ["REPLY_MARKER"],
+                                   "owner": "self"}], "shadow": True}
+            st = Store(os.path.join(d, "watch.db"))
+            stats = runmod.poll_once(cfg, st, None, shadow=True)
+            self.assertEqual(stats["new"], 2)  # 中ほどの印と、混在する普通の依頼は除外しない
+            self.assertEqual(stats["filtered_counts"], {"relay_bot_call": 1,
+                             "relay_bot_message": 1, "self_relay_bot_notice": 1})
+            self.assertEqual(st.db.execute("select sum(count) from filtered_event_counts").fetchone()[0], 3)
+
+
 class RunTest(unittest.TestCase):
     def setUp(self):
         self.s, self.url = server()

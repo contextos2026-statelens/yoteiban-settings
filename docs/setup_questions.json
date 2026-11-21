@@ -1,5 +1,5 @@
 {
-  "comment": "版ごとの質問一覧。個人の値は置かない。質問の全文は skills/setup/SKILL.md。アップデートのたびに added_in が今の VERSION 以下の全質問と記憶の設定を照らし合わせ、memory_key または aliases に答えがある項目を除いて追加で聞く。意味が迷う時だけ1回確かめる。完了した設定の版より後に added_in がある質問は、先に聞く順番の目安。連携済みと「仮（未回答）」は pending に含めない。",
+  "comment": "版ごとの追加質問。初回設定と追加設定はこのカタログを使い、質問の全文は skills/setup/SKILL.md に置く。条件付き項目は when の全条件が確定するまで pending に出さず、when_any はどれか1条件が成立した場合だけ出す。既存の答え・連携設定は上書きしない。個人の値は置かない。",
   "baseline_version": "1.0.28",
   "releases": [
     {
@@ -50,6 +50,20 @@
         "done_check"
       ],
       "note": "予定の終了時に、結果が分からない時だけ確認する設定を追加。"
+    },
+    {
+      "version": "1.0.42",
+      "added_question_ids": [
+        "imessage_use",
+        "imessage_mac_available",
+        "imessage_mac_receive",
+        "imessage_linq_use",
+        "imessage_linq_receive",
+        "imessage_privacy_consent",
+        "relay_bot_markers",
+        "send_prefix"
+      ],
+      "note": "iMessage受信経路、同意、連携ボットの目印、送信時の名乗り設定を追加。初回・追加設定とも同じ質問カタログを使う。"
     }
   ],
   "questions": [
@@ -491,6 +505,137 @@
       "unavailable_if_declined": "聞かない設定では、分からない予定の結果は自動で残らず、カバー案を出しにくくなる。",
       "answer_keys": [
         "done_check"
+      ]
+    },
+    {
+      "id": "imessage_use",
+      "added_in": "1.0.42",
+      "title": "iMessageの利用",
+      "memory_key": "予定ばんでiMessageを使う",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "33",
+      "answer_keys": [
+        "予定ばんでiMessageを使う"
+      ]
+    },
+    {
+      "id": "imessage_mac_available",
+      "added_in": "1.0.42",
+      "title": "本人のMac",
+      "memory_key": "iMessageを設定したMacがある",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "34",
+      "answer_keys": [
+        "iMessageを設定したMacがある"
+      ],
+      "when": {
+        "key": "予定ばんでiMessageを使う",
+        "equals": "使う"
+      }
+    },
+    {
+      "id": "imessage_mac_receive",
+      "added_in": "1.0.42",
+      "title": "Mac chat.db受信",
+      "memory_key": "MacのチャットDB受信を使う",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "35",
+      "answer_keys": [
+        "MacのチャットDB受信を使う"
+      ],
+      "when": {
+        "key": "iMessageを設定したMacがある",
+        "equals": "ある"
+      }
+    },
+    {
+      "id": "imessage_privacy_consent",
+      "added_in": "1.0.42",
+      "title": "メッセージ取扱いの同意",
+      "memory_key": "iMessage受信のプライバシー確認",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "38",
+      "answer_keys": [
+        "iMessage受信のプライバシー確認"
+      ],
+      "when_any": [
+        {
+          "key": "MacのチャットDB受信を使う",
+          "equals": "使う"
+        },
+        {
+          "key": "連携ボット経由のメッセージを予定ばんで受け取る",
+          "equals": "受け取る"
+        }
+      ]
+    },
+    {
+      "id": "imessage_linq_use",
+      "added_in": "1.0.42",
+      "title": "iMessage連携ボット",
+      "memory_key": "iMessage連携ボットを利用している",
+      "aliases": [
+        "Linq経由のiMessage連携を利用している"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "36",
+      "answer_keys": [
+        "iMessage連携ボットを利用している"
+      ],
+      "when": {
+        "key": "予定ばんでiMessageを使う",
+        "equals": "使う"
+      }
+    },
+    {
+      "id": "imessage_linq_receive",
+      "added_in": "1.0.42",
+      "title": "連携ボット経由の受信",
+      "memory_key": "連携ボット経由のメッセージを予定ばんで受け取る",
+      "aliases": [
+        "連携ボットの受信を予定ばんで使う"
+      ],
+      "in_initial_setup": true,
+      "setup_question": "37",
+      "answer_keys": [
+        "連携ボット経由のメッセージを予定ばんで受け取る"
+      ],
+      "when": {
+        "key": "iMessage連携ボットを利用している",
+        "equals": "使っている"
+      }
+    },
+    {
+      "id": "relay_bot_markers",
+      "added_in": "1.0.42",
+      "title": "連携ボットの目印",
+      "memory_key": "連携ボットの判定設定",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "39",
+      "when": {
+        "key": "連携ボット経由のメッセージを予定ばんで受け取る",
+        "equals": "受け取る"
+      },
+      "answer_keys": [
+        "連携ボットの判定設定"
+      ]
+    },
+    {
+      "id": "send_prefix",
+      "added_in": "1.0.42",
+      "title": "送る文の文頭の名乗り",
+      "memory_key": "送る文の文頭の名乗り",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "40",
+      "default": "【〈呼び名〉の予定ばんからのメッセージです】",
+      "answer_keys": [
+        "送る文の文頭の名乗り"
       ]
     }
   ]

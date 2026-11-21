@@ -155,6 +155,40 @@ def pending_questions(
             answered = True
         if answered:
             continue
+        # 条件付き質問は親の回答が確定してからだけ提示する。falseなら枝を閉じる。
+        condition = item.get("when")
+        if condition:
+            clauses = condition if isinstance(condition, list) else [condition]
+            eligible = True
+            unresolved = False
+            for clause in clauses:
+                if not isinstance(clause, dict) or not clause.get("key"):
+                    raise ValueError("when は key/equals を持つ条件である必要があります")
+                key = clause["key"]
+                if not already_answered(mem, key):
+                    unresolved = True
+                    break
+                expected = clause.get("equals")
+                values = expected if isinstance(expected, list) else [expected]
+                actual = mem[key]
+                if actual not in values:
+                    eligible = False
+                    break
+            if unresolved or not eligible:
+                continue
+        alternatives = item.get("when_any")
+        if alternatives:
+            outcomes = []
+            for clause in alternatives:
+                key = clause.get("key", "")
+                if not key or not already_answered(mem, key):
+                    outcomes.append(None)
+                    continue
+                expected = clause.get("equals")
+                values = expected if isinstance(expected, list) else [expected]
+                outcomes.append(mem[key] in values)
+            if True not in outcomes:
+                continue
         integration = item.get("integration")
         if integration and integration in linked:
             continue

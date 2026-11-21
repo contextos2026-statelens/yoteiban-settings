@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 DELEGATION = HERE / "delegation.py"
 
 # このテストが触ってよい領域の接頭辞
-TMP_PREFIX = "/tmp/"
+TMP_PREFIXES = ("/tmp/", "/private/tmp/")  # macOS の /tmp は /private/tmp へ解決される
 
 # 既存ツール（変更していないことの確認用。テストからは読めるが書かない）
 TOOLS = HERE.parent
@@ -34,7 +34,7 @@ class Fail(Exception):
 
 def ensure_tmp(path: Path) -> Path:
     resolved = path.resolve()
-    if not str(resolved).startswith(TMP_PREFIX):
+    if not str(resolved).startswith(TMP_PREFIXES):
         raise Fail(f"隔離違反: {resolved} は /tmp 配下ではありません")
     return resolved
 
@@ -853,7 +853,7 @@ def test_existing_tools_untouched() -> None:
     for path, label in (
         (CASEBOOK, "casebook.py"),
         (QUEUE, "queue.py"),
-        (WORKLOG, "worklog.py"),
+        *(([(WORKLOG, "worklog.py")] if WORKLOG.exists() else [])),
     ):
         if not path.exists():
             raise Fail(f"既存ファイルが見つからない: {label}")
@@ -880,6 +880,10 @@ TESTS = [
     ("登録の冪等と監査ログの追記", test_add_idempotent_and_audit, True),
     ("既存の本体ファイルが残っている", lambda _s: test_existing_tools_untouched(), False),
 ]
+if not WORKLOG.exists():
+    TESTS = [case for case in TESTS if case[0] != "既存の本体ファイルが残っている"] + [
+        ("既存の本体ファイルが残っている（存在するもの）", lambda _s: test_existing_tools_untouched(), False)
+    ]
 
 
 def main() -> int:
@@ -897,7 +901,7 @@ def main() -> int:
             fn(store)
         except Exception as e:
             failed += 1
-            detail = "".join(traceback.format_exception(e))
+            detail = "".join(traceback.format_exception(type(e), e, e.__traceback__))
             errors.append(f"[失敗] {i}. {name}\n{detail}")
             print(f"[失敗] {i}. {name}")
         else:

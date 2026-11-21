@@ -83,6 +83,27 @@ def read_imessage(db_path: str, after_rowid: int, limit: int = 200) -> list[Inco
     return out
 
 
+def normalize_linq_webhook(event: dict) -> Incoming:
+    """Linq message.receivedを共通Incomingへ変換。イベント受信・認証は呼出側が担当。"""
+    if not isinstance(event, dict):
+        raise SourceError("Linqイベントがオブジェクトではありません")
+    data = event.get("data") if isinstance(event.get("data"), dict) else event
+    msg = data.get("message") if isinstance(data.get("message"), dict) else data
+    chat = data.get("chat") if isinstance(data.get("chat"), dict) else {}
+    event_id = event.get("event_id") or event.get("id")
+    native = msg.get("id") or msg.get("message_id") or event_id
+    if not native:
+        raise SourceError("Linqイベントに再送照合用IDがありません")
+    sender = msg.get("sender_handle") or msg.get("sender") or ""
+    body = msg.get("text") or msg.get("body") or ""
+    sent_at = msg.get("sent_at") or msg.get("created_at") or data.get("sent_at") or ""
+    return Incoming("linq", str(native), str(sender), str(body), str(sent_at),
+                    str(chat.get("id") or data.get("chat_id") or ""),
+                    bool(chat.get("is_group", data.get("is_group", False))),
+                    str(msg.get("direction", data.get("direction", "inbound"))).casefold() == "outbound",
+                    extra={"event_id": str(event_id or ""), "owner_handle": chat.get("owner_handle")})
+
+
 def run_tool(argv: list, service: str, timeout: int = 60) -> object:
     """読む道具を呼ぶ。道具の機能は --enable-commands で service だけに絞ってあること。
     送信や変更の語が引数に入っていたら呼ばない。"""
