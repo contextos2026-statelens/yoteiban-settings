@@ -13,7 +13,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
 
-_CORE = Path(__file__).resolve().parents[3] / "core"
+_APP_ROOT = Path(__file__).resolve().parents[1]
+_CORE = _APP_ROOT if (_APP_ROOT / "yoteiban_core").is_dir() else Path(__file__).resolve().parents[3] / "core"
 if str(_CORE) not in sys.path:
     sys.path.insert(0, str(_CORE))
 from yoteiban_core.refs import normalize_native_ref

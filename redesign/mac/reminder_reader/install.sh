@@ -1,17 +1,51 @@
 #!/bin/bash
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
+if [[ "${1:-}" == "--dry-run" ]]; then
+  echo 'dry-run: Readerコード配置とログイン項目登録を行う予定です。設定・環境ファイルは変更しません。変更はありません。'
+  exit 0
+fi
 if [[ "${1:-}" != "使う" ]]; then
   read -r -p '通知取得アプリを使いますか？「使う」と入力してください: ' choice
   [[ "$choice" == "使う" ]] || { echo '変更せず終了しました。'; exit 0; }
 fi
 
-ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 APP="$HOME/yoteiban-watch/reminder_reader"
+APP_ROOT="$HOME/yoteiban-watch/app"
+STATE="$HOME/yoteiban-watch/state"
+PYTHON_BIN="$(bash "$ROOT/redesign/mac/scripts/select_python.sh" "$HOME/yoteiban-watch")"
 mkdir -p "$APP"
+mkdir -p "$APP_ROOT/yoteiban_watch" "$APP_ROOT/yoteiban_core" "$APP_ROOT/scripts" "$STATE/backups"
+if [[ ! -e "$HOME/yoteiban-watch/config.json" ]]; then
+  cp "$ROOT/redesign/mac/config.example.json" "$HOME/yoteiban-watch/config.json"
+fi
+if [[ ! -e "$HOME/yoteiban-watch/env" ]]; then
+  cat > "$HOME/yoteiban-watch/env" <<'ENVFILE'
+# 値は本人がMac上で設定する。鍵やURLはチャットに貼らない。
+YOTEIBAN_WEBHOOK_URL=
+YOTEIBAN_WEBHOOK_KEY=
+YOTEIBAN_WEBHOOK_AUTH=
+YOTEIBAN_WEBHOOK_FORMAT=envelope
+YOTEIBAN_AI_KEY=
+ENVFILE
+fi
+chmod 600 "$HOME/yoteiban-watch/config.json" "$HOME/yoteiban-watch/env"
+STAMP="$(date +%Y%m%d%H%M%S)"
+if [[ -f "$APP/reader.py" ]]; then cp -p "$APP/reader.py" "$STATE/backups/reminder-reader.$STAMP.py"; fi
+if [[ -f "$APP/run.sh" ]]; then cp -p "$APP/run.sh" "$STATE/backups/reminder-reader-run.$STAMP.sh"; fi
 cp "$ROOT/redesign/mac/reminder_reader/reader.py" "$APP/reader.py"
-mkdir -p "$HOME/yoteiban-watch/app/yoteiban_core"
-cp "$ROOT/core/yoteiban_core/reminder_kind.py" "$HOME/yoteiban-watch/app/yoteiban_core/reminder_kind.py"
+for module in waker heartbeat; do
+  if [[ -f "$APP_ROOT/yoteiban_watch/$module.py" ]]; then cp -p "$APP_ROOT/yoteiban_watch/$module.py" "$STATE/backups/$module.$STAMP.py"; fi
+  cp "$ROOT/redesign/mac/yoteiban_watch/$module.py" "$APP_ROOT/yoteiban_watch/$module.py"
+done
+touch "$APP_ROOT/yoteiban_watch/__init__.py"
+if [[ -f "$APP_ROOT/yoteiban_core/reminder_kind.py" ]]; then cp -p "$APP_ROOT/yoteiban_core/reminder_kind.py" "$STATE/backups/reminder_kind.$STAMP.py"; fi
+cp "$ROOT/core/yoteiban_core/reminder_kind.py" "$APP_ROOT/yoteiban_core/reminder_kind.py"
+cp "$ROOT/redesign/mac/scripts/select_python.sh" "$APP_ROOT/scripts/select_python.sh"
+chmod 700 "$APP_ROOT/scripts/select_python.sh"
+printf '%s\n' "$PYTHON_BIN" > "$STATE/python-path"
+chmod 600 "$STATE/python-path"
 cat > "$APP/run.sh" <<'RUNNER'
 #!/bin/bash
 set -euo pipefail
@@ -21,9 +55,12 @@ if [[ -f "$ROOT/env" ]]; then
   source "$ROOT/env"
   set +a
 fi
-export YOTEIBAN_WEBHOOK_FORMAT=envelope
+: "${YOTEIBAN_WEBHOOK_FORMAT:=envelope}"
+export YOTEIBAN_WEBHOOK_FORMAT
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 export PYTHONPATH="$ROOT/app:$ROOT/reminder_reader${PYTHONPATH:+:$PYTHONPATH}"
-exec python3 "$ROOT/reminder_reader/reader.py" --config "$ROOT/config.json"
+PYTHON_BIN="$(bash "$ROOT/app/scripts/select_python.sh" "$ROOT")"
+exec "$PYTHON_BIN" "$ROOT/reminder_reader/reader.py" --config "$ROOT/config.json"
 RUNNER
 chmod 700 "$APP/run.sh" "$APP/reader.py"
 

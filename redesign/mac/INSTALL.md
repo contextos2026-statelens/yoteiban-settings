@@ -82,3 +82,11 @@ bash install.sh
 同じAppleアカウントでない場合、移動用のリスト共有が必要です。共有後に場所通知がMacへ届くかは未確認です。常駐Macがない場合の代替は時刻のリマインダーだけで、場所の出発・到着合図は使いません。このPRには位置リマインダーの自動作成や移動の進み具合、カバー方法は含めません。
 
 試験は架空のSQLite通知fixtureだけを使い、本物の通知DB・本番env・本番Macには接続しません。既存のログイン項目登録状況や本番ルーチンは変更しません。
+
+## 接続準備・個別心拍
+
+導入前の読み取り専用点検は `bash scripts/preflight.sh`、変更予定の確認は `bash scripts/install.sh --dry-run` です。実行環境・FDA・接続試験の本人向け手順は `SETUP_GUIDE.md` を参照してください。通常導入は plist の検証後に専用ラベルだけを再登録します。Reader は見張り番とは別のPython選択処理を使わず、共有の選択スクリプトと保存済み実行環境を利用します。
+
+Readerの監視には `config.json` の `reader_heartbeat_url` を指定できます。未設定時は既存の `heartbeat_url` を共有し、個別監視ではない状態を記録します。状態確認ではReaderのファイル配置・心拍記録を表示しますが、実機のログイン項目やFDA許可は本人が確かめます。
+
+接続診断は `python3 -m yoteiban_watch.doctor --only preflight` のように工程を指定します。本番Webhookへの試しの1件と心拍 `/fail` は、本人が別途承認した場合だけそれぞれ `--send-webhook-test`、`--send-heartbeat-fail` を指定します。送信成功と台帳登録確認は別状態です。失敗工程のみをやり直せます。

@@ -1,0 +1,8 @@
+{
+  "bundle_version": "1.0.43",
+  "target_version": "string or unknown",
+  "result": "success | failed | not_applied",
+  "tests": {"fixture_cases": 0, "passed": 0, "failed": 0},
+  "rolled_back": false,
+  "detail_code": "SAFE_GENERIC_CODE"
+}

@@ -7,6 +7,7 @@
   "_relay_bot_entry_example": {"label": "<連携ボットの呼び名>", "sender_handles": [], "call_markers": [], "reply_markers": [], "owner": "self"},
   "resend_backoff_s": [30, 120, 600, 1800],
   "heartbeat_url": "",
+  "reader_heartbeat_url": "",
   "shadow": true,
   "webhook_url": "",
   "sources": {

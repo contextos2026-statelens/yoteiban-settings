@@ -75,6 +75,9 @@ class ReminderReaderTests(unittest.TestCase):
         self.assertIsNotNone(datetime.fromisoformat(self.sent[0]["received_at"]).tzinfo)
         self.assertIn("架空町", json.dumps(self.sent, ensure_ascii=False))
         self.assertEqual(self.heartbeats[-1], ("fixture-heartbeat", True))
+        reader_hb = json.loads((self.root / "heartbeat_reader.json").read_text())
+        self.assertTrue(reader_hb["ok"])
+        self.assertFalse(reader_hb["dedicated"])
         saved = json.loads(self.state.read_text())
         self.assertEqual(saved["sent"], [self.sent[0]["native_ref"]])
         self.assertNotIn("架空町", self.state.read_text())
@@ -154,6 +157,13 @@ class ReminderReaderTests(unittest.TestCase):
             reader.run(interval_s=5)
         self.assertEqual(delays, [30])
         self.assertEqual(self.heartbeats, [("fixture-heartbeat", False)])
+
+    def test_reader_uses_dedicated_heartbeat_when_configured(self):
+        self.cfg["reader_heartbeat_url"] = "fixture-reader-heartbeat"
+        self.assertTrue(self.reader().once()["ok"])
+        self.assertEqual(self.heartbeats[-1], ("fixture-reader-heartbeat", True))
+        data=json.loads((self.root/"heartbeat_reader.json").read_text())
+        self.assertTrue(data["dedicated"])
 
     def test_classifier_recognizes_only_exact_signal_formats(self):
         self.assertEqual(classify("出発の時間：#0012")["summary"], "出発の知らせ：#12")

@@ -1,5 +1,6 @@
 import json, os, socket, sqlite3, tempfile, threading, time, unittest, plistlib, shutil, subprocess
 import hashlib, hmac
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import _paths  # noqa
 from yoteiban_watch.mask import mask
@@ -19,6 +20,7 @@ class Fake(BaseHTTPRequestHandler):
     seen = []
     seen_headers = []
     seen_bodies = []
+    retry_after = "3"
 
     def log_message(self, *a):
         pass
@@ -39,8 +41,18 @@ class Fake(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 pass
             return
+        if isinstance(p, dict):
+            try:
+                self.send_response(200); self.end_headers()
+                self.wfile.write(json.dumps(p, ensure_ascii=False).encode())
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
         try:
-            self.send_response(p); self.end_headers(); self.wfile.write(b"{}")
+            self.send_response(p)
+            if p == 429:
+                self.send_header("Retry-After", Fake.retry_after)
+            self.end_headers(); self.wfile.write(b"{}")
         except (BrokenPipeError, ConnectionResetError):
             pass
 
@@ -201,6 +213,31 @@ class WakerTest(unittest.TestCase):
         self.assertEqual(Fake.seen[-1], payload)
         self.assertEqual(Fake.seen_bodies[-1], expected)
 
+    def test_429_retries_only_with_bounded_retry_after(self):
+        delays = []
+        Fake.plan = [429, 200]
+        result = wake(self.url, "k", {"request_id":"rate"}, backoff=[1], sleep=delays.append)
+        self.assertEqual((result["delivery_state"], result["registration_state"], result["attempts"]),
+                         ("success", "unverified", 2))
+        self.assertEqual(delays, [3.0])
+        Fake.plan = [429, 200]
+        Fake.retry_after = "900"
+        result = wake(self.url, "k", {"request_id":"rate-no-retry"}, backoff=[1],
+                      max_retry_after_s=10, sleep=delays.append)
+        self.assertEqual(result["detail_code"], "RATE_LIMIT_RETRY_UNAVAILABLE")
+        self.assertEqual(Fake.seen[-1]["request_id"], "rate-no-retry")
+        Fake.retry_after = "3"
+
+    def test_http_success_and_ledger_registration_are_distinct(self):
+        Fake.plan = [{"ok":True, "request_id":"accepted", "input_id":"fixture-input"}]
+        result = wake(self.url, "k", {"request_id":"accepted"}, sleep=lambda *_: None)
+        self.assertEqual(result["delivery_state"], "success")
+        self.assertEqual(result["registration_state"], "registered")
+        Fake.plan = [200]
+        result = wake(self.url, "k", {"request_id":"not-confirmed"}, sleep=lambda *_: None)
+        self.assertEqual(result["delivery_state"], "success")
+        self.assertEqual(result["registration_state"], "unverified")
+
     def test_signature_header_is_present_with_and_without_authorization(self):
         from unittest.mock import patch
         for auth in (None, "Bearer test-value"):
@@ -325,28 +362,50 @@ class InstallAssetsTest(unittest.TestCase):
         root = os.path.dirname(os.path.dirname(__file__))
         bash = shutil.which("bash")
         self.assertIsNotNone(bash)
-        for name in ("install.sh", "uninstall.sh", "status.sh"):
+        for name in ("install.sh", "uninstall.sh", "status.sh", "preflight.sh", "select_python.sh"):
             path = os.path.join(root, "mac", "scripts", name)
             result = subprocess.run([bash, "-n", path], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_install_is_dry_run_capable_and_preserves_existing_config(self):
+        root = Path(__file__).resolve().parents[1]
+        install = (root / "mac/scripts/install.sh").read_text()
+        reader = (root / "mac/reminder_reader/install.sh").read_text()
+        self.assertIn('"--dry-run"', install)
+        self.assertIn('"--dry-run"', reader)
+        self.assertIn('if [[ ! -e "$DEST/config.json" ]]', install)
+        self.assertIn('if [[ ! -e "$HOME/yoteiban-watch/config.json" ]]', reader)
+        self.assertIn('select_python.sh', install)
+        self.assertIn('select_python.sh', reader)
+
+    def test_install_dry_run_does_not_create_home_state(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as home:
+            env = dict(os.environ, HOME=home)
+            for script in (root / "mac/scripts/install.sh", root / "mac/reminder_reader/install.sh"):
+                result = subprocess.run(["bash", str(script), "--dry-run"], env=env,
+                                         capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((Path(home) / "yoteiban-watch").exists())
 
 
 class RelayBotFilterRunTest(unittest.TestCase):
     def test_configured_relay_bot_messages_are_counted_but_never_ingested(self):
         with tempfile.TemporaryDirectory() as d:
             db = os.path.join(d, "chat.db")
-            make_chatdb(db, [(1, "CALL_MARKER private call text", None, 0, 0, 1),
-                             (2, "ordinary REPLY_MARKER private reply", None, 0, 0, 1),
-                             (3, "bot ordinary text", None, 0, 0, 2),
-                             (4, "ordinary CALL_MARKER in the middle", None, 0, 0, 1),
-                             (5, "unmarked request for tomorrow", None, 0, 0, 1)])
+            make_chatdb(db, [(1, "CALL_MARKER fixture call", None, 0, 0, 1),
+                             (2, "ordinary REPLY_MARKER fixture text", None, 0, 0, 1),
+                             (3, "REPLY_MARKER fixture bot reply", None, 0, 0, 1),
+                             (4, "fixture bot ordinary text", None, 0, 0, 2),
+                             (5, "ordinary CALL_MARKER in the middle", None, 0, 0, 1),
+                             (6, "unmarked request for tomorrow", None, 0, 0, 1)])
             cfg = {"state_dir": d, "sources": {"imessage": {"enabled": True, "db_path": db}},
                    "relay_bots": [{"label": "<fixture>", "sender_handles": ["h-unknown"],
                                    "call_markers": ["CALL_MARKER"], "reply_markers": ["REPLY_MARKER"],
                                    "owner": "self"}], "shadow": True}
             st = Store(os.path.join(d, "watch.db"))
             stats = runmod.poll_once(cfg, st, None, shadow=True)
-            self.assertEqual(stats["new"], 2)  # 中ほどの印と、混在する普通の依頼は除外しない
+            self.assertEqual(stats["new"], 3)  # 中ほどの発言印・呼びかけ印は除外しない
             self.assertEqual(stats["filtered_counts"], {"relay_bot_call": 1,
                              "relay_bot_message": 1, "self_relay_bot_notice": 1})
             self.assertEqual(st.db.execute("select sum(count) from filtered_event_counts").fetchone()[0], 3)

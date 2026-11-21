@@ -91,6 +91,19 @@ class Reader:
         tmp.chmod(0o600)
         tmp.replace(self.state_path)
 
+    def _heartbeat(self, ok: bool) -> bool:
+        dedicated = bool(self.config.get("reader_heartbeat_url"))
+        url = self.config.get("reader_heartbeat_url") or self.config.get("heartbeat_url", "")
+        delivered = self.heartbeat_fn(url, ok)
+        state_path = Path(self.config.get("state_dir") or self.state_path.parent) / "heartbeat_reader.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = state_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"at": self.now().isoformat(), "ok": bool(ok and delivered),
+                                   "dedicated": dedicated}, ensure_ascii=False), encoding="utf-8")
+        tmp.chmod(0o600)
+        tmp.replace(state_path)
+        return bool(ok and delivered)
+
     def once(self) -> dict:
         try:
             state = self._state()
@@ -113,10 +126,13 @@ class Reader:
                 self._save(state)
             state["cursor"] = max(state["cursor"], high)
             self._save(state)
-            self.heartbeat_fn(self.config.get("heartbeat_url", ""), True)
+            self._heartbeat(True)
             return {"ok": True, "sent": len(notices)}
         except Exception:
-            self.heartbeat_fn(self.config.get("heartbeat_url", ""), False)
+            try:
+                self._heartbeat(False)
+            except Exception:
+                pass
             return {"ok": False, "sent": 0}
 
     def run(self, interval_s=5):

@@ -1,0 +1,19 @@
+{
+  "bundle_version": "1.0.43",
+  "files": {
+    "SPEC.md": "28a2114fb395ac42d1a3f235b649ba4d8d52fc5f9a7e2531e5bab0c0a09eaee7",
+    "APPLY.md": "0a56b03d1e0afbc5a0c926d5482b212c8892aaccce315c3c3279a866a097b159",
+    "ROLLBACK.md": "500e7f656522d752210cd2cfb7cd558b0202730db82a8ddda519c210e1b17bfb",
+    "RESULT.schema.json": "eb47e7c780d64f564e4817dbfca17ad32c049dd88bf5041d6feed9100f3da30d",
+    "MEASURE.md": "cad711c788ad3c1be5ad4bcfd2e3efeaaa983e158896d7df54bc856a8153f8ee",
+    "runtime.py": "dbfc8620d8caa9b1c223ddc52e9a472c65b5c1f0cd5bd7af2603c4004b7d633e",
+    "test_runtime.py": "048a56de0478face6acfa198b56b187dc807249ade8ff847af9308c3d79bc387"
+  },
+  "preserve": [
+    "configuration",
+    "secrets",
+    "history",
+    "processed_message_ids"
+  ],
+  "verification": "SHA-256 for each file; regenerate after bundle edits"
+}

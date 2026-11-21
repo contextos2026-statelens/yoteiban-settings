@@ -22,7 +22,27 @@ DEFAULT_MAX_BODY_CHARS = 8000
 
 def _result(ok=False, request_id=None, input_id=None, created=False, reason="", signed_by=None):
     return {"ok": bool(ok), "request_id": request_id, "input_id": input_id,
-            "created": bool(created), "reason": reason, "signed_by": signed_by}
+            "created": bool(created), "reason": reason, "signed_by": signed_by,
+            "detail_code": "OK" if ok else _detail_code(reason)}
+
+
+def _detail_code(reason: str) -> str:
+    text = str(reason or "")
+    if "署名" in text or "鍵" in text:
+        return "SIGNATURE_INVALID"
+    if "JSON" in text or "JSON" in text.upper():
+        return "PAYLOAD_INVALID"
+    if "request_id" in text:
+        return "REQUEST_ID_INVALID"
+    if "時刻" in text:
+        return "TIMESTAMP_INVALID"
+    if "source" in text or "native_ref" in text:
+        return "SOURCE_REFERENCE_INVALID"
+    if "本文" in text:
+        return "BODY_INVALID"
+    if "kind" in text:
+        return "KIND_INVALID"
+    return "INTAKE_REJECTED"
 
 
 def _header(headers, name):
@@ -160,6 +180,21 @@ def handle(ledger, cfg, headers, body_bytes, now, secret):
         return _result(request_id=request_id, reason="本文が大きすぎるか文字列ではありません", signed_by=signed_by)
     if not isinstance(sender_role, str):
         return _result(request_id=request_id, reason="sender_role が不正です", signed_by=signed_by)
+
+    # Generic relay-bot filtering at intake is a second guard after the Mac
+    # watcher. Only message sources are considered; excluded bodies never reach
+    # the ledger, mask pipeline, or a downstream candidate.
+    if (isinstance(source, str) and (source == "imessage" or source.startswith("imessage:") or
+            source == "linq" or source.startswith("linq:"))):
+        from .relay_bot_filter import classify_relay_bot
+        relay_kind = classify_relay_bot(body_text, payload.get("sender_handle", ""),
+                                        cfg.get("relay_bots", []))
+        if relay_kind:
+            result = _result(True, request_id, None, False,
+                             reason="configured relay-bot event filtered", signed_by=signed_by)
+            result["detail_code"] = "RELAY_BOT_FILTERED"
+            result["filtered_kind"] = relay_kind
+            return result
 
     # 読み取り係に渡す本文だけを伏せ字化する。伏せ字機能が無い場合や
     # 消し残しが検出された場合は空にし、後段でボット自身が読む。

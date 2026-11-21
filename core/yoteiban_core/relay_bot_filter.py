@@ -20,6 +20,8 @@ def classify_relay_bot(text: str, sender: str, config: list[dict] | None) -> str
         replies = [str(x) for x in bot.get("reply_markers", []) if x]
         if any(body.startswith(marker) for marker in calls):
             return "relay_bot_call"
-        if any(marker in body for marker in replies):
+        # Reply marks are emitted at the start of the bot's own text. A marker
+        # quoted or discussed in the middle of a normal message is not a bot reply.
+        if any(body.startswith(marker) for marker in replies):
             return "relay_bot_message"
     return None

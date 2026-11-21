@@ -64,6 +64,15 @@
         "send_prefix"
       ],
       "note": "iMessage受信経路、同意、連携ボットの目印、送信時の名乗り設定を追加。初回・追加設定とも同じ質問カタログを使う。"
+    },
+    {
+      "version": "1.0.43",
+      "added_question_ids": [
+        "mac_watch_connection_prep",
+        "reader_connection_prep",
+        "relay_bot_update_use"
+      ],
+      "note": "常駐Macの受信準備と連携ボット更新連携の質問を追加。既存の答え・接続は保持。"
     }
   ],
   "questions": [
@@ -637,6 +646,54 @@
       "answer_keys": [
         "送る文の文頭の名乗り"
       ]
+    },
+    {
+      "id": "mac_watch_connection_prep",
+      "added_in": "1.0.43",
+      "title": "常駐Macの接続準備",
+      "memory_key": "Macの見張り番と受け口の準備",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "41",
+      "when": {
+        "key": "常駐Macの有無",
+        "equals": "ある"
+      },
+      "integration": "mac_watch"
+    },
+    {
+      "id": "reader_connection_prep",
+      "added_in": "1.0.43",
+      "title": "通知Reader接続準備",
+      "memory_key": "通知Readerの接続準備",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "42",
+      "when": [
+        {
+          "key": "Macの見張り番と受け口の準備",
+          "equals": "準備を進める"
+        },
+        {
+          "key": "出発の知らせ設定",
+          "equals": "reminder"
+        }
+      ],
+      "integration": "reminder_reader"
+    },
+    {
+      "id": "relay_bot_update_use",
+      "added_in": "1.0.43",
+      "title": "連携ボット更新の案内",
+      "memory_key": "連携ボット更新の案内",
+      "aliases": [],
+      "in_initial_setup": true,
+      "setup_question": "43",
+      "when": [
+        {"key": "iMessage連携ボットを利用している", "equals": "使っている"},
+        {"key": "連携ボット経由のメッセージを予定ばんで受け取る", "equals": "受け取る"}
+      ],
+      "integration": "relay_bot_update"
     }
   ]
 }

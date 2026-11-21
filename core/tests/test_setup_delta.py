@@ -71,8 +71,35 @@ class CatalogTests(unittest.TestCase):
         linq["連携ボット経由のメッセージを予定ばんで受け取る"] = "受け取る"
         self.assertEqual([q["id"] for q in sd.pending_questions(questions, linq)],
                          ["imessage_privacy_consent", "relay_bot_markers"])
+        update_question = [q for q in catalog["questions"] if q["id"] == "relay_bot_update_use"]
+        self.assertEqual(sd.pending_questions(update_question, {
+            "iMessage連携ボットを利用している": "使っている",
+            "連携ボット経由のメッセージを予定ばんで受け取る": "受け取らない",
+        }), [])
+        update_answers = {
+            "iMessage連携ボットを利用している": "使っている",
+            "連携ボット経由のメッセージを予定ばんで受け取る": "受け取る",
+        }
+        self.assertEqual([q["id"] for q in sd.pending_questions(update_question, update_answers)],
+                         ["relay_bot_update_use"])
+        update_answers["連携ボット更新の案内"] = "使わない"
+        self.assertEqual(sd.pending_questions(update_question, update_answers), [])
         self.assertEqual([q["id"] for q in sd.pending_questions(
             [q for q in catalog["questions"] if q["id"] == "send_prefix"], {})], ["send_prefix"])
+
+    def test_connection_prep_branches_require_parent_answers(self):
+        catalog = sd.load_catalog()
+        questions = [q for q in catalog["questions"] if q["id"] in {
+            "mac_watch_connection_prep", "reader_connection_prep"}]
+        self.assertEqual(sd.pending_questions(questions, {}), [])
+        answers = {"常駐Macの有無": "ある", "出発の知らせ設定": "reminder"}
+        self.assertEqual([q["id"] for q in sd.pending_questions(questions, answers)],
+                         ["mac_watch_connection_prep"])
+        answers["Macの見張り番と受け口の準備"] = "準備を進める"
+        self.assertEqual([q["id"] for q in sd.pending_questions(questions, answers)],
+                         ["reader_connection_prep"])
+        answers["Macの見張り番と受け口の準備"] = "今はしない"
+        self.assertEqual(sd.pending_questions(questions, answers), [])
 
     def test_empty_delta_for_1_0_29(self):
         catalog = sd.load_catalog()
