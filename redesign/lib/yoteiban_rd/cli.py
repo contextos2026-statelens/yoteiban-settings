@@ -113,16 +113,50 @@ def cmd_nightly(data: dict) -> dict:
     cases = []
     for c in data.get("cases", []):
         c = dict(c)
-        for k in ("due", "waiting_since"):
+        for k in ("due", "waiting_since", "next_review_at"):
             if c.get(k):
                 c[k] = parse_time(c[k])
         cases.append(Case(**c))
     fb = data.get("feedback")
     if isinstance(fb, str):
         fb = load_feedback(fb)
+    answer_map = data.get("answers", {})
+    no_answer_days = data.get("no_answer_days", 0)
+    if data.get("ledger_path"):
+        from yoteiban_core.ledger import Ledger
+        ledger = Ledger(data["ledger_path"])
+        try:
+            answer_map = {r["card_key"]: {"answer": r["answer"], "answered_at": r["answered_at"]}
+                          for r in ledger.list_card_answers()}
+            fb = fb or {}
+            for key, value in answer_map.items():
+                if value["answer"] in {"当たり", "外れ", "まだ分からない"}:
+                    fb[key] = {"verdict": value["answer"], "at": value["answered_at"], "answered": True}
+            previous = data.get("previous") or {}
+            shown_on = str(data["now"])[:10]
+            ledger.record_card_presentations([f.get("key") for f in previous.get("morning", []) + previous.get("record_only", [])], shown_on)
+            no_answer_days = ledger.unanswered_presentation_streak(str(data["now"])[:10])
+        finally:
+            ledger.close()
     return review(cases, [_ev(e) for e in data.get("events", [])], parse_time(data["now"]),
                   data.get("goals", []), data.get("horizon_days", HORIZON_DAYS), data.get("daily_load_limit_min"),
-                  data.get("previous"), fb, data.get("coverage"))
+                  data.get("previous"), fb, data.get("coverage"), answer_map, no_answer_days)
+
+
+def cmd_answer(data: dict) -> dict:
+    from yoteiban_core.ledger import Ledger
+    required = ("ledger_path", "card_key", "answer", "answered_at")
+    missing = [k for k in required if not data.get(k)]
+    if missing:
+        raise InputError("answer 入力に必須項目がありません: " + ", ".join(missing))
+    ledger = Ledger(data["ledger_path"])
+    try:
+        result = ledger.record_card_answer(data["card_key"], data["answer"], data["answered_at"],
+                                           data.get("review_days", 3), data.get("case_id"), data.get("question_id"))
+        result["action_requested"] = data["answer"] == "出して"
+        return result
+    finally:
+        ledger.close()
 
 
 def _sources(data: dict) -> list:
@@ -233,7 +267,7 @@ def cmd_hit_rate(data: dict) -> dict:
     return hit_rate(data["path"], parse_time(data["now"]), data.get("days", 7))
 
 
-COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": cmd_nightly,
+COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": cmd_nightly, "answer": cmd_answer,
             "coverage": cmd_coverage, "morning": cmd_morning, "weekday": cmd_weekday,
             "feedback": cmd_feedback, "hit-rate": cmd_hit_rate, "diff": cmd_diff,
             "snapshot": cmd_snapshot, "free": cmd_free,

@@ -1,7 +1,8 @@
 import json, os, subprocess, sys, unittest
+import tempfile
 import _paths  # noqa
 
-ENV = dict(os.environ, PYTHONPATH=os.path.join(_paths.ROOT, "lib"))
+ENV = dict(os.environ, PYTHONPATH=os.pathsep.join((os.path.join(_paths.ROOT, "lib"), os.path.join(_paths.ROOT, "..", "core"))))
 
 
 def run(task, data):
@@ -28,6 +29,19 @@ class CliTest(unittest.TestCase):
         self.assertEqual(rc, 2); self.assertIn("error", out)
         rc, out = run("check-write", {})
         self.assertEqual(rc, 2)
+
+    def test_answer_command_records_and_reads_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = os.path.join(tmp, "ledger.sqlite")
+            payload = {"ledger_path": db, "card_key": "fictional-card", "answer": "当たり",
+                       "answered_at": "2026-11-22T08:00:00+09:00"}
+            rc, out = run("answer", payload)
+            self.assertEqual(rc, 0)
+            self.assertTrue(out["ok"])
+            self.assertEqual(out["answer"]["answer"], "当たり")
+            rc, again = run("answer", payload)
+            self.assertEqual(rc, 0)
+            self.assertFalse(again["inserted"])
 
 
 class CliErrorTest(unittest.TestCase):
