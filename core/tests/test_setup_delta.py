@@ -245,6 +245,16 @@ class Version130Tests(unittest.TestCase):
 
 
 class MissingAnswerTests(unittest.TestCase):
+    def test_no_initial_marker_or_completed_version_is_initial_setup(self):
+        report = sd.build_report(sd.load_catalog(), None, "1.0.46", {})
+        self.assertTrue(report["initial_setup_required"])
+        self.assertFalse(report["additional_setup_required"])
+
+    def test_initial_setup_marker_without_version_is_additional_setup(self):
+        report = sd.build_report(sd.load_catalog(), None, "1.0.46", {"初回設定済み（日付）": "2026-01-01"})
+        self.assertFalse(report["initial_setup_required"])
+        self.assertTrue(report["additional_setup_required"])
+
     def test_newer_root_version_starts_additional_setup(self):
         catalog = sd.load_catalog()
         report = sd.build_report(catalog, "1.0.44", "1.0.45", {})

@@ -11,7 +11,7 @@ def validate_morning_send(body: str, items: list[dict], ledger_items: list[dict]
     known = {str(x.get("text", "")).strip() for x in [*(items or []), *(ledger_items or [])]
              if str(x.get("text", "")).strip()}
     lines = [line.strip() for line in str(body or "").splitlines() if line.strip()]
-    content = [line for line in lines if line not in HEADINGS and not line.startswith("📅") and not line.startswith("✅")]
+    content = [line for line in lines if line not in HEADINGS]
     unexpected = [line for line in content if line not in known]
     visible = {x for x in content if x in known}
     missing = [{"type": x.get("type"), "text": x.get("text"), "values": x.get("values")}

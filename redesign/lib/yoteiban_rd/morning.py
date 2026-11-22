@@ -155,9 +155,8 @@ def build_morning(day: date, sources: list[Source], reads: dict, owner_cfg: dict
             for event in evs:
                 if event.owner == "unknown":
                     relations = [relate_events(event, p) for p in personal]
-                    if any(r != "別件" for r in relations):
+                    if any(r == "同一" for r in relations):
                         event.owner = "self"
-                        event.meta["relation_conflict"] = RELATION_CONFLICT in relations
             by_role[s.role] += evs
     today = lambda e: e.end > d0 and e.start < d1 if not e.all_day else (e.start <= d0 < e.end or e.start == d0)
     plan: list[tuple[Event, list[str]]] = []
@@ -166,11 +165,15 @@ def build_morning(day: date, sources: list[Source], reads: dict, owner_cfg: dict
     unknown, excluded, cards = [], [], []
     conflicts = {}
     conflicted_household_ids = set()
-    for h in by_role["household"] + by_role["family"]:
-        if not today(h):
+    household_events = [h for h in by_role["household"] + by_role["family"] if today(h)]
+    personal_today = [p for p in personal if today(p)]
+    household_same = {id(h) for h in household_events if any(relate_events(h, p) == "同一" for p in personal_today)}
+    personal_same = {id(p) for p in personal_today if any(relate_events(h, p) == "同一" for h in household_events)}
+    for h in household_events:
+        if id(h) in household_same:
             continue
-        for p in personal:
-            if today(p) and relate_events(h, p) == RELATION_CONFLICT:
+        for p in personal_today:
+            if id(p) not in personal_same and relate_events(h, p) == RELATION_CONFLICT:
                 conflicts.setdefault(id(h), (h, []))[1].append(p)
                 conflicted_household_ids.add(id(h))
     for e in sorted(by_role["household"] + by_role["family"], key=lambda e: e.start):
@@ -179,6 +182,9 @@ def build_morning(day: date, sources: list[Source], reads: dict, owner_cfg: dict
         if id(e) in conflicted_household_ids:
             continue
         if e.owner in ("self", "all"):
+            # Known-self full calendar frame stays in the ledger; show the contained personal item.
+            if any(relate_events(e, p) == "包含" for p in personal if today(p)):
+                continue
             same = next((p for p in plan if relate_events(p[0], e) == "同一"), None)
             if same:
                 if e.meta["source_label"] not in same[1]:
@@ -242,7 +248,8 @@ def build_morning(day: date, sources: list[Source], reads: dict, owner_cfg: dict
         plan_lines.append(_line(event, plan_sources(event, labels)))
         if rain and _outdoor_event(event):
             plan_lines.append("　↳ 傘")
-    visible_notices = _visible_notices([x for x in notices or [] if isinstance(x, dict) and x.get("values")])
+    valid_notices = [x for x in notices or [] if isinstance(x, dict) and x.get("text") and (x.get("values") or x.get("source"))]
+    visible_notices = [str(x["text"]).strip() for x in valid_notices if str(x["text"]).strip()]
     parts = ["📅予定\n" + "\n".join(plan_lines)]
     if check_lines:
         parts.append("✅確認してね\n" + "\n".join(check_lines))
@@ -276,13 +283,20 @@ def build_morning(day: date, sources: list[Source], reads: dict, owner_cfg: dict
     for card in cards:
         items.append({"type": "カードで聞くこと", "text": card["question"], "values": dict(card)})
     for text in visible_notices:
-        source_record = next(x for x in notices if isinstance(x, dict) and x.get("text") == text)
-        items.append({"type": "確認すること", "text": text, "values": source_record["values"], "source": source_record.get("source")})
+        source_record = next(x for x in valid_notices if x.get("text") == text)
+        items.append({"type": "確認すること", "text": text,
+                      "values": source_record.get("values") or {"source": source_record.get("source")},
+                      "source": source_record.get("source")})
     ledger_items = [{"type": "記録だけ", "reason": "同一の写し" if relate_events(a, b) == "同一" else "包含関係",
                      "values": [{"id": a.id, "title": a.title, "start": a.start.isoformat(), "end": a.end.isoformat(), "location": a.location, "source": a.meta.get("source_label")},
                                 {"id": b.id, "title": b.title, "start": b.start.isoformat(), "end": b.end.isoformat(), "location": b.location, "source": b.meta.get("source_label")}]} \
                     for a, b in combinations(personal + by_role["household"] + by_role["family"], 2)
                     if relate_events(a, b) in ("同一", "包含")]
+    for notice in notices or []:
+        if isinstance(notice, str):
+            ledger_items.append({"type": "記録だけ", "reason": "旧形式noticeは本文対象外", "values": notice})
+        elif not isinstance(notice, dict) or not notice.get("text") or not (notice.get("values") or notice.get("source")):
+            ledger_items.append({"type": "記録だけ", "reason": "本文表示に必要な根拠がないnotice", "values": notice})
     send_check = validate_morning_send(body, items, ledger_items)
     return {"body": body, "items": items, "ledger_items": ledger_items, "send_check": send_check,
             "cards": cards, "coverage": cov,
