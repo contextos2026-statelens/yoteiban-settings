@@ -197,7 +197,8 @@ class Round2(unittest.TestCase):
                                                g("3", "家族で夕食", "2026-11-18T18:00:00+09:00", "2026-11-18T19:00:00+09:00"),
                                                g("4", "テスト花子 ヨガ", "2026-11-18T12:00:00+09:00", "2026-11-18T13:00:00+09:00")]}}
         r = build_morning(date(2026, 11, 18), S, reads, {"self_names": ["テスト太郎"], "roster": ["テスト花子"]})
-        self.assertIn("・10:00〜11:00 ピアノ（個人用カレンダー・家用カレンダー）", r["body"])
+        self.assertIn("・10:00〜11:00 ピアノ", r["body"])
+        self.assertNotIn("個人用カレンダー・家用カレンダー", r["body"])
         self.assertIn("家族で夕食", r["body"])
         self.assertNotIn("ヨガ", r["body"])
         self.assertEqual(r["body"].count("ピアノ"), 1)
@@ -218,8 +219,8 @@ class Round2(unittest.TestCase):
                                                        "2026-11-18 11:00 JST")]}}
         body = build_morning(date(2026, 11, 18), S, reads,
                              weather=["くもり・最高 18℃・最低 10℃・雨 14:00〜16:00"])["body"]
-        self.assertLess(body.index("・天気："), body.index("通院（"))
-        self.assertIn("通院（個人用カレンダー）\n　↳ 傘", body)
+        self.assertLess(body.index("・天気："), body.index("通院"))
+        self.assertIn("通院\n　↳ 傘", body)
 
     def test_a23_no_change_notices_and_household_copy_note_are_suppressed(self):
         S = [Source("p", "個人用カレンダー", "personal")]

@@ -81,6 +81,38 @@ class LookaheadTests(unittest.TestCase):
         self.assertNotIn("old", [f["key"] for f in result])
         self.assertTrue(all(f["date"] in {"2026-11-19", "2026-11-20", "2026-11-21", "2026-11-25"} for f in result))
 
+    def test_copies_and_enclosing_blocks_are_audited_but_not_warned(self):
+        events = [
+            {"id":"copy1", "title":"英語授業", "start":"2026-11-18T09:00:00+09:00", "end":"2026-11-18T10:00:00+09:00", "calendar_role":"personal"},
+            {"id":"copy2", "title":"英語 授業", "start":"2026-11-18T09:05:00+09:00", "end":"2026-11-18T10:05:00+09:00", "calendar_role":"personal"},
+            {"id":"block", "title":"スクーリング", "start":"2026-11-18T11:30:00+09:00", "end":"2026-11-18T17:40:00+09:00", "calendar_role":"personal"},
+            {"id":"class", "title":"スクーリング授業", "start":"2026-11-18T13:00:00+09:00", "end":"2026-11-18T14:00:00+09:00", "calendar_role":"personal"},
+            {"id":"real1", "title":"会議A", "start":"2026-11-18T18:00:00+09:00", "end":"2026-11-18T19:00:00+09:00", "calendar_role":"personal"},
+            {"id":"real2", "title":"会議B", "start":"2026-11-18T18:30:00+09:00", "end":"2026-11-18T19:30:00+09:00", "calendar_role":"personal"},
+        ]
+        audit = []
+        findings = run(events, [], self.today, self.settings, record_only=audit)
+        overlaps = [f for f in findings if f["type"] == "重なり"]
+        self.assertEqual(len(overlaps), 1)
+        self.assertEqual({tuple(x["refs"]) for x in audit}, {("copy1", "copy2"), ("block", "class")})
+        self.assertTrue(all(x["type"] == "記録だけ" for x in audit))
+
+    def test_same_title_time_disagreement_is_not_silenced(self):
+        events = [
+            {"id":"a", "title":"授業", "start":"2026-11-18T09:00:00+09:00", "end":"2026-11-18T10:00:00+09:00", "calendar_role":"personal"},
+            {"id":"b", "title":"授業", "start":"2026-11-18T09:30:00+09:00", "end":"2026-11-18T10:30:00+09:00", "calendar_role":"personal"},
+        ]
+        self.assertIn("予定の食い違い", {f["type"] for f in run(events, [], self.today, self.settings)})
+
+    def test_non_overlapping_time_disagreement_is_still_reported(self):
+        events = [
+            {"id":"a", "title":"出発", "start":"2026-11-18T09:00:00+09:00", "end":"2026-11-18T09:10:00+09:00", "calendar_role":"personal"},
+            {"id":"b", "title":"出発", "start":"2026-11-18T11:00:00+09:00", "end":"2026-11-18T11:10:00+09:00", "calendar_role":"household"},
+        ]
+        found = run(events, [], self.today, self.settings)
+        self.assertIn("予定の食い違い", {f["type"] for f in found})
+        self.assertNotIn("重なり", {f["type"] for f in found})
+
 
 if __name__ == "__main__":
     unittest.main()

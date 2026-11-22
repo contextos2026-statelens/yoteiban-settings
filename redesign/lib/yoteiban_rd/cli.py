@@ -14,6 +14,7 @@ from .calc import (CalcError, Event, find_conflicts, free_slots, fmt_md, parse_t
 from .urgency import Context, Item, decide
 from .nightly import Case, review, record_feedback, load_feedback, hit_rate, HORIZON_DAYS
 from .morning import Source, build_morning, coverage
+from .message_check import validate_morning_send
 from .quick import diff as quick_diff, snapshot as quick_snapshot
 from .latency import judge as latency_judge
 from .route_links import build_route_links
@@ -172,6 +173,10 @@ def cmd_morning(data: dict) -> dict:
                          data.get("weather"), data.get("confirm"), data.get("notices"))
 
 
+def cmd_check_morning_send(data: dict) -> dict:
+    return validate_morning_send(data.get("body", ""), data.get("items", []), data.get("ledger_items", []))
+
+
 def cmd_weekday(data: dict) -> dict:
     base = date.fromisoformat(data["base"]) if data.get("base") else date.today()
     out = {"mismatches": check_weekdays(data.get("text", ""), base)}
@@ -268,7 +273,7 @@ def cmd_hit_rate(data: dict) -> dict:
 
 
 COMMANDS = {"urgency": cmd_urgency, "check-write": cmd_check_write, "nightly": cmd_nightly, "answer": cmd_answer,
-            "coverage": cmd_coverage, "morning": cmd_morning, "weekday": cmd_weekday,
+            "coverage": cmd_coverage, "morning": cmd_morning, "check-morning-send": cmd_check_morning_send, "weekday": cmd_weekday,
             "feedback": cmd_feedback, "hit-rate": cmd_hit_rate, "diff": cmd_diff,
             "snapshot": cmd_snapshot, "free": cmd_free,
             "latency": cmd_latency, "route-links": cmd_route_links, "departure": cmd_departure,
