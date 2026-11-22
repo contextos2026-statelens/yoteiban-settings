@@ -39,10 +39,16 @@
         "same_apple_account",
         "find_my_device",
         "reminder_location_permission",
-        "reminder_full_disk_access",
+        "reminder_full_disk_access"
+      ],
+      "note": "常駐MacとiPhoneの通知取得・位置許可の初回設定を追加。移動の見守り設定は1.0.40で追加。"
+    },
+    {
+      "version": "1.0.40",
+      "added_question_ids": [
         "movement_monitoring"
       ],
-      "note": "常駐MacとiPhoneの通知取得・位置許可・移動の見守りの初回設定を追加。専用リストは既存の質問を再利用する。"
+      "note": "移動の見守り設定を追加。未回答時は利用を止め、本人に確認する。"
     },
     {
       "version": "1.0.41",
@@ -490,7 +496,7 @@
     },
     {
       "id": "movement_monitoring",
-      "added_in": "1.0.39",
+      "added_in": "1.0.40",
       "title": "移動の見守り",
       "memory_key": "移動の見守りの利用",
       "aliases": [
@@ -690,8 +696,14 @@
       "in_initial_setup": true,
       "setup_question": "43",
       "when": [
-        {"key": "iMessage連携ボットを利用している", "equals": "使っている"},
-        {"key": "連携ボット経由のメッセージを予定ばんで受け取る", "equals": "受け取る"}
+        {
+          "key": "iMessage連携ボットを利用している",
+          "equals": "使っている"
+        },
+        {
+          "key": "連携ボット経由のメッセージを予定ばんで受け取る",
+          "equals": "受け取る"
+        }
       ],
       "integration": "relay_bot_update"
     }

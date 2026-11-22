@@ -253,9 +253,16 @@ def build_report(
     pending = [item for item in pending if item["id"] in added_ids] + [
         item for item in pending if item["id"] not in added_ids
     ]
+    completed_text = (completed or "").strip()
+    additional_setup_required = (
+        not completed_text
+        or version_less(completed_text, current)
+        or bool(pending)
+    )
     return {
         "completed_version": resolved_completed_version(catalog, completed),
         "current_version": current,
+        "additional_setup_required": additional_setup_required,
         "added": [item["id"] for item in added],
         "pending": [item["id"] for item in pending],
         "questions": pending,
