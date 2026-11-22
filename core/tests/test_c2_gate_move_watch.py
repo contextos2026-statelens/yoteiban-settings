@@ -75,6 +75,7 @@ class MoveWatchGateTests(unittest.TestCase):
 
     def test_missing_conditions_shared_list_and_location_in_persisted_payload_are_denied(self):
         self.assertFalse(check(self.ledger, dict(self.cfg, movement_monitoring="使わない"), self.op(), NOW)["allow"])
+        self.assertFalse(check(self.ledger, {k: v for k, v in self.cfg.items() if k != "movement_monitoring"}, self.op(), NOW)["allow"])
         self.assertFalse(check(self.ledger, self.cfg, self.op(target="reminder-shared"), NOW)["allow"])
         bad = self.op()
         bad["payload"]["location"] = "架空駅A"

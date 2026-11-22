@@ -51,6 +51,14 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(catalog["baseline_version"], "1.0.28")
         self.assertTrue(any(r["version"] == "1.0.29" for r in catalog["releases"]))
 
+    def test_settings_from_1_0_40_through_1_0_43_are_catalogued(self):
+        catalog = sd.load_catalog()
+        self.assertEqual(next(r for r in catalog["releases"] if r["version"] == "1.0.40")["added_question_ids"], ["movement_monitoring"])
+        ids = {q["id"] for q in catalog["questions"]}
+        self.assertTrue({"movement_monitoring", "departure_notice", "route_link_preferences",
+                         "done_check", "mac_watch_connection_prep", "reader_connection_prep",
+                         "relay_bot_update_use"}.issubset(ids))
+
     def test_conditional_imessage_questions_wait_for_answers_and_follow_branches(self):
         catalog = sd.load_catalog()
         questions = [q for q in catalog["questions"] if q["added_in"] == "1.0.42"
@@ -237,6 +245,20 @@ class Version130Tests(unittest.TestCase):
 
 
 class MissingAnswerTests(unittest.TestCase):
+    def test_newer_root_version_starts_additional_setup(self):
+        catalog = sd.load_catalog()
+        report = sd.build_report(catalog, "1.0.44", "1.0.45", {})
+        self.assertTrue(report["additional_setup_required"])
+        self.assertIn("movement_monitoring", report["pending"])
+
+    def test_unanswered_movement_monitoring_is_asked_once_and_stays_off(self):
+        catalog = sd.load_catalog()
+        item = next(q for q in catalog["questions"] if q["id"] == "movement_monitoring")
+        self.assertEqual(sd.pending_questions([item], {}), [item])
+        tentative = sd.record_answer({}, item["memory_key"], sd.default_memory_value(item))
+        self.assertEqual(sd.pending_questions([item], tentative), [])
+        self.assertIn(sd.TENTATIVE_MARK, tentative[item["memory_key"]])
+
     def test_old_setup_checks_missing_baseline_answers(self):
         catalog = sd.load_catalog()
         report = sd.build_report(

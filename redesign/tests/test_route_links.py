@@ -87,6 +87,14 @@ class RouteLinksTests(unittest.TestCase):
         output = json.loads(stdout.getvalue())
         self.assertEqual(output["links"][0]["provider"], "google")
 
+    def test_decided_trip_output_instruction_includes_route_link_row(self):
+        skill = (ROOT / "skills" / "adjust" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("決まった移動の予定をチャットや朝のまとめに出すとき", skill)
+        self.assertIn("route-links", skill)
+        self.assertIn('「経路：Google マップで開く」をリンクとして置く', skill)
+        result = build_route_links({"destination": "架空駅", "mode": "walking"})
+        self.assertTrue(result["links"][0]["url"].startswith("https://www.google.com/maps/dir/"))
+
 
 if __name__ == "__main__":
     unittest.main()
