@@ -36,14 +36,15 @@ def _events_on(events, day):
     return found
 
 
-def _base(cases, events, today, settings):
+def _base(cases, events, today, settings, record_only=None):
     span = max(14, int((settings or {}).get("pattern_days", 14)))
-    return lookahead.run(events, cases, today, settings, weather=(settings or {}).get("weather"), days=span)
+    return lookahead.run(events, cases, today, settings, weather=(settings or {}).get("weather"), days=span,
+                         record_only=record_only)
 
 
 def _from_lookahead(kind):
-    def check(cases, events, today, settings):
-        return [f for f in _base(cases, events, today, settings) if f["type"] == kind]
+    def check(cases, events, today, settings, record_only=None):
+        return [f for f in _base(cases, events, today, settings, record_only) if f["type"] == kind]
     return check
 
 
@@ -223,7 +224,7 @@ REGISTRY: dict[str, Callable] = {
 }
 
 
-def check_all(cases, events, today, enabled: set, settings) -> list[Finding]:
+def check_all(cases, events, today, enabled: set, settings, record_only: list | None = None) -> list[Finding]:
     """有効な型だけを実行し、Findingを日付・型順で返す。"""
     if not isinstance(enabled, (set, frozenset)):
         raise TypeError("enabled は型名の set で指定してください")
@@ -234,7 +235,7 @@ def check_all(cases, events, today, enabled: set, settings) -> list[Finding]:
     }
     selected = {name: kind for name, kind in delegated.items() if name in enabled}
     if selected:
-        findings.extend(f for f in _base(cases, events, today, settings or {})
+        findings.extend(f for f in _base(cases, events, today, settings or {}, record_only)
                          if f["type"] in set(selected.values()))
     for name in sorted(enabled):
         if name in delegated:

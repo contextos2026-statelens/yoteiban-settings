@@ -45,6 +45,17 @@ class PatternTests(unittest.TestCase):
         got = check_all(self.cases, self.events, self.today, {"持ち物"}, self.settings)
         self.assertEqual({item["type"] for item in got}, {"持ち物"})
 
+    def test_lookahead_relations_are_sent_to_record_only_sink(self):
+        events = [
+            {"id":"copy-a", "title":"用事", "start":"2026-11-18T09:00:00+09:00", "end":"2026-11-18T10:00:00+09:00", "calendar_role":"personal"},
+            {"id":"copy-b", "title":"用事", "start":"2026-11-18T09:05:00+09:00", "end":"2026-11-18T10:05:00+09:00", "calendar_role":"personal"},
+        ]
+        audit = []
+        check_all([], events, self.today, {"食事の時間"}, self.settings, record_only=audit)
+        self.assertEqual(len(audit), 1)
+        self.assertEqual(audit[0]["type"], "記録だけ")
+        self.assertEqual(audit[0]["refs"], ["copy-a", "copy-b"])
+
     def test_resolved_supply_is_ignored_and_monthly_occurrence_suppresses(self):
         cases = [{"case_id":"trip", "title":"遠足", "due_at":"2026-11-20T08:00:00+09:00", "questions":[{"kind":"持ち物", "status":"埋まった"}]}]
         events = self.events + [{"id":"nov", "title":"月例会", "start":"2026-11-10T10:00:00+09:00", "end":"2026-11-10T11:00:00+09:00"}]

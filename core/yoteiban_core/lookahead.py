@@ -46,7 +46,8 @@ def _event(value: dict) -> calc.Event | None:
         start=start, end=end,
         calendar="household" if role in ("household", "family") else "candidate" if role == "draft" else "personal",
         owner="self" if role == "personal" else "unknown" if role in ("household", "family") else "other",
-        location=value.get("place_kind"), kind=str(value.get("kind", "")),
+        location=value.get("location", value.get("place_kind")), kind=str(value.get("kind", "")),
+        meta={"source": value.get("calendar_id", value.get("calendar_role", role))},
     )
 
 
@@ -69,7 +70,8 @@ def _day_window(day: date) -> tuple[datetime, datetime]:
     return start, start + timedelta(days=1)
 
 
-def run(events, cases, today, settings, weather=None, travel_min=None, days=7) -> list[dict]:
+def run(events, cases, today, settings, weather=None, travel_min=None, days=7,
+        record_only: list | None = None) -> list[dict]:
     """todayを含むdays日間を調べる。入力は読み取り専用で、日付はJSTで扱う。"""
     first = _date(today)
     if first is None:
@@ -83,6 +85,20 @@ def run(events, cases, today, settings, weather=None, travel_min=None, days=7) -
     personal = [e for e in evs if e.calendar == "personal"]
     households = [e for e in evs if e.calendar == "household"]
     candidates = [e for e in evs if e.calendar == "candidate"]
+    # Keep every suppressed pair in an explicit audit sink; never turn a copy or
+    # enclosing block into a warning. Callers that persist lookahead results can
+    # store this alongside findings without date-specific exception rules.
+    ignored_pairs = []
+    for i, a in enumerate(evs):
+        for b in evs[i + 1:]:
+            relation = calc.relate_events(a, b)
+            if relation in (calc.RELATION_SAME, calc.RELATION_CONTAINS):
+                ignored_pairs.append({"type": "記録だけ", "relation": relation,
+                                      "date": a.start.date().isoformat(), "refs": [a.id, b.id],
+                                      "values": [{"id": a.id, "title": a.title, "start": a.start.isoformat(), "end": a.end.isoformat(), "location": a.location, "source": a.meta.get("source")},
+                                                 {"id": b.id, "title": b.title, "start": b.start.isoformat(), "end": b.end.isoformat(), "location": b.location, "source": b.meta.get("source")}]})
+    if record_only is not None:
+        record_only.extend(ignored_pairs)
     weather_by_date = {_date(w.get("date")): w for w in (weather or []) if _date(w.get("date"))}
     findings: list[dict] = []
     def add(kind, day, refs, urgency, text):
@@ -91,27 +107,34 @@ def run(events, cases, today, settings, weather=None, travel_min=None, days=7) -
     for offset in range(days):
         day = first + timedelta(days=offset)
         day_events = [e for e in personal + households + candidates if e.start.date() == day]
+        for i, a in enumerate(day_events):
+            for b in day_events[i + 1:]:
+                if calc.relate_events(a, b) == calc.RELATION_CONFLICT:
+                    add("予定の食い違い", day, [a.id, b.id], "今日中",
+                        f"{a.title}の時刻または場所が食い違っています")
         # 本人の予定同士、家族予定との重なり、候補と確定予定の重なり。
         for i, a in enumerate(personal):
             if a.start.date() != day:
                 continue
             for b in personal[i + 1:]:
-                if b.start.date() == day and calc.overlaps(a, b):
+                if b.start.date() == day and calc.overlaps(a, b) and calc.relate_events(a, b) == calc.RELATION_SEPARATE:
                     add("重なり", day, [a.id, b.id], "今日中", f"{a.title}と{b.title}が重なっています")
             for b in households:
-                if b.start.date() == day and calc.overlaps(a, b):
+                if b.start.date() == day and calc.overlaps(a, b) and calc.relate_events(a, b) == calc.RELATION_SEPARATE:
                     add("家族と重なる", day, [a.id, b.id], "今日中", f"{a.title}が家族の予定と重なっています")
         for a in candidates:
             if a.start.date() != day:
                 continue
             for b in personal:
-                if b.start.date() == day and calc.overlaps(a, b):
+                if b.start.date() == day and calc.overlaps(a, b) and calc.relate_events(a, b) == calc.RELATION_SEPARATE:
                     add("候補の予定が確定と重なる", day, [a.id, b.id], "今日中", f"候補の{a.title}が確定した{b.title}と重なっています")
 
         # 移動の所要を予定間で確認。所要不明なら判定を行わない。
         ordered = sorted([e for e in personal if e.start.date() == day], key=lambda e: e.start)
         if callable(travel_min):
             for a, b in zip(ordered, ordered[1:]):
+                if calc.relate_events(a, b) in (calc.RELATION_SAME, calc.RELATION_CONTAINS):
+                    continue
                 if a.end > b.start or not a.location or not b.location:
                     continue
                 try:
@@ -125,6 +148,8 @@ def run(events, cases, today, settings, weather=None, travel_min=None, days=7) -
         prep = max(0, int(cfg["prep_min"]))
         for e in personal:
             if e.start.date() != day or prep == 0:
+                continue
+            if any(x is not e and calc.relate_events(e, x) in (calc.RELATION_SAME, calc.RELATION_CONTAINS) for x in personal):
                 continue
             previous = [x for x in personal if x is not e and x.end <= e.start]
             prior_end = max((x.end for x in previous), default=_day_window(day)[0])
@@ -178,7 +203,7 @@ def run(events, cases, today, settings, weather=None, travel_min=None, days=7) -
                         add("雨と外出", day, [e.id], "今日中", f"{e.title}の日は雨の予報です")
 
         # 本人の予定だけの負荷を集計。
-        load = calc.day_load_minutes(personal, day)
+        load = calc.day_load_minutes(calc.representative_events(personal), day)
         if load > int(cfg["overload_minutes"]):
             add("詰め込みすぎ", day, [e.id for e in personal if e.start.date() == day], "今日中", "予定が詰まりすぎています")
 

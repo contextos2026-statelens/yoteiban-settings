@@ -17,8 +17,9 @@ from dataclasses import dataclass, field, asdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from .calc import (JST, Event, find_conflicts, find_duplicates, travel_check, day_load_minutes, fmt, fmt_md,
-                   conflict_kind, free_slots, is_duplicate)
+from .calc import (JST, Event, find_conflicts, related_event_pairs, relate_events,
+                   RELATION_CONFLICT, representative_events, travel_check, day_load_minutes, fmt, fmt_md,
+                   conflict_kind, free_slots)
 
 MAX_MORNING = 3
 HORIZON_DAYS = 7  # nightly スキルの「先1週間」とそろえる。ずらし先探しは SHIFT_SEARCH_STEPS。重い締切の手順分けとお祝いは HEAVY_DAYS / OCCASION_DAYS
@@ -178,6 +179,7 @@ def review(cases: list[Case], events: list[Event], now: datetime, goals: list[st
     open_cases = [c for c in cases if c.status in ("open", "paused")]
     all_future = [e for e in events if e.end > now and e.start < heavy_horizon]
     future_events = [e for e in all_future if e.start < horizon]
+    related_pairs = related_event_pairs(future_events)
 
     # 0. 読めていないカレンダー（読めていないのに「予定なし」と言わない）
     if coverage and not coverage.get("all_ok", True):
@@ -187,7 +189,13 @@ def review(cases: list[Case], events: list[Event], now: datetime, goals: list[st
 
     for a, b in find_conflicts(future_events):
         k = conflict_kind(a, b)
-        if k == "未確認の重なり":
+        if k == RELATION_CONFLICT:
+            def time_range(ev):
+                return f"{ev.start.astimezone(JST):%H:%M}〜{ev.end.astimezone(JST):%H:%M}"
+            found.append(Finding("食い違い", a.title, f"{a.calendar} {time_range(a)}／{b.calendar} {time_range(b)}。同じ用事の時刻または場所が異なる",
+                                 "どちらの予定が正しいか確認する", None, [], _score(now, min(a.start, b.start), 2),
+                                 [a.id, b.id], when=_d(min(a.start, b.start))))
+        elif k == "未確認の重なり":
             unk = a if a.owner == "unknown" else b
             found.append(Finding(k, f"{a.title} と {b.title}", f"{fmt_md(a.start)}〜 が、誰の予定か分からない家用の予定と重なる",
                                  "重なる案は出してよいが未確認の1行を入れる（第22章）",
@@ -198,11 +206,11 @@ def review(cases: list[Case], events: list[Event], now: datetime, goals: list[st
                                  "どちらを優先するか、2案を出す（動かせない方を残す）",
                                  "どちらを優先しますか？", [a.title, b.title, "あとで決める"],
                                  _score(now, a.start, 3), [a.id, b.id], when=_d(a.start)))
-    for a, b in find_duplicates(future_events):
-        where = "同じカレンダーに2つ" if a.calendar == b.calendar else "家用と個人用に同じ予定"
-        found.append(Finding("ダブり", a.title, where,
-                             "朝のまとめでは1行にまとめる（何も消さない。消すのは本人の承認の後で個人用だけ）",
-                             None, [], 1 if a.calendar == b.calendar else 0, [a.id, b.id], when=_d(a.start)))
+    for a, b, relation in related_pairs:
+        details = [{"title": e.title, "start": fmt(e.start), "end": fmt(e.end), "location": e.location, "calendar": e.calendar}
+                   for e in (a, b)]
+        found.append(Finding("記録だけ", f"{a.title}／{b.title}", f"{relation}。予定値を保持：{details}",
+                             "本人には表示せず台帳に残す", None, [], 0, [a.id, b.id], when=_d(a.start)))
     for t in travel_check(future_events):
         ev = next(e for e in future_events if e.id == t["event"])
         typ = t["type"]
@@ -224,7 +232,7 @@ def review(cases: list[Case], events: list[Event], now: datetime, goals: list[st
     for e in all_future:
         if e.calendar in ("household", "family") and e.owner in ("self", "all") and not e.all_day \
                 and e.start < now + timedelta(days=HOUSEHOLD_ONLY_DAYS) \
-                and not any(is_duplicate(e, p) for p in personal):
+                and not any(relate_events(e, p) != "別件" for p in personal):
             found.append(Finding("家用だけ", e.title, f"{fmt_md(e.start)}：家用カレンダーにだけある本人の予定",
                                  "その日の朝のまとめの📅予定に載せる（出どころ：家用カレンダー。家用には書かない）",
                                  None, [], 0, [e.id], when=_d(e.start)))
@@ -286,7 +294,7 @@ def review(cases: list[Case], events: list[Event], now: datetime, goals: list[st
     if daily_load_limit_min:
         days = sorted({e.start.astimezone(JST).date() for e in future_events if not e.all_day})
         for d in days:
-            load = day_load_minutes(future_events, d)
+            load = day_load_minutes(representative_events([e for e in future_events if e.owner in ("self", "all")]), d)
             if load > daily_load_limit_min:
                 found.append(Finding("作業量の目安", d.isoformat(), f"予定の合計 {load}分（目安 {daily_load_limit_min}分）",
                                      "1つを別の日に回す案を出す（管理はしない）", None, [], 1, []))

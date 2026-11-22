@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 import re
 import unicodedata
+from difflib import SequenceMatcher
 
 JST = timezone(timedelta(hours=9))
 
@@ -101,22 +102,85 @@ def find_conflicts(events: list[Event], owner_only: bool = True) -> list[tuple[E
     out = []
     for i, a in enumerate(evs):
         for b in evs[i + 1:]:
-            if b.start >= a.end:
-                break
             if owner_only and a.owner == "unknown" and b.owner == "unknown":
                 continue
-            if overlaps(a, b) and not is_duplicate(a, b):
+            relation = relate_events(a, b)
+            if b.start >= a.end and relation != RELATION_CONFLICT:
+                break
+            if relation == RELATION_CONFLICT or (overlaps(a, b) and relation == RELATION_SEPARATE):
                 out.append((a, b))
     return out
 
 
 def conflict_kind(a: Event, b: Event) -> str:
     """重なりの種類。持ち主不明が入るものは「未確認の重なり」（案は出してよいが未確認の1行を入れる）。"""
+    if relate_events(a, b) == RELATION_CONFLICT:
+        return RELATION_CONFLICT
     return "未確認の重なり" if "unknown" in (a.owner, b.owner) else "重なり"
+
+
+def related_event_pairs(events: list[Event]) -> list[tuple[Event, Event, str]]:
+    """同一写し・包含を全予定から拾い、値を保持する。"""
+    evs = [e for e in events if not e.all_day]
+    out = []
+    for i, a in enumerate(evs):
+        for b in evs[i + 1:]:
+            relation = relate_events(a, b)
+            if relation in (RELATION_SAME, RELATION_CONTAINS):
+                out.append((a, b, relation))
+    return out
+
+
+def representative_events(events: list[Event]) -> list[Event]:
+    """関係のある写し・包含群を負荷計算用に1件ずつ表す。入力は変更しない。"""
+    remaining = list(events or [])
+    result = []
+    while remaining:
+        group = [remaining.pop(0)]
+        changed = True
+        while changed:
+            changed = False
+            for event in list(remaining):
+                if any(relate_events(event, member) in (RELATION_SAME, RELATION_CONTAINS) for member in group):
+                    group.append(event)
+                    remaining.remove(event)
+                    changed = True
+        result.append(max(group, key=lambda e: (e.end - e.start, e.end)))
+    return result
 
 
 def _same_plan(a: Event, b: Event) -> bool:
     return is_duplicate(a, b)
+
+
+RELATION_SAME = "同一"
+RELATION_CONTAINS = "包含"
+RELATION_CONFLICT = "食い違い"
+RELATION_SEPARATE = "別件"
+
+
+def relate_events(a: Event, b: Event, slack_minutes: int = 15) -> str:
+    """予定の写し・包含・同じ用事の不一致を分類する。入力予定は変更しない。"""
+    if a.all_day or b.all_day:
+        return RELATION_SAME if a.all_day and b.all_day and norm_text(a.title) == norm_text(b.title) else RELATION_SEPARATE
+    na, nb = norm_text(a.title), norm_text(b.title)
+    if not na or not nb:
+        return RELATION_SEPARATE
+    contained_name = na == nb or na in nb or nb in na
+    similar_name = contained_name or (min(len(na), len(nb)) >= 3 and SequenceMatcher(None, na, nb).ratio() >= .78)
+    same_day = a.start.astimezone(JST).date() == b.start.astimezone(JST).date()
+    if not same_day or not similar_name:
+        return RELATION_SEPARATE
+    location_conflict = bool(a.location and b.location and norm_text(a.location) != norm_text(b.location))
+    starts_close = abs((a.start - b.start).total_seconds()) <= slack_minutes * 60
+    ends_close = abs((a.end - b.end).total_seconds()) <= slack_minutes * 60
+    if starts_close and ends_close and not location_conflict:
+        return RELATION_SAME
+    if not location_conflict and ((a.start <= b.start and b.end <= a.end) or
+                                  (b.start <= a.start and a.end <= b.end)):
+        if (a.start, a.end) != (b.start, b.end):
+            return RELATION_CONTAINS
+    return RELATION_CONFLICT
 
 
 _HONORIFIC = re.compile(r"(さん|ちゃん|くん|君|様|さま)$")
@@ -130,8 +194,7 @@ def norm_text(t: str) -> str:
 
 
 def is_duplicate(a: Event, b: Event) -> bool:
-    """同じ予定の二重登録か。時刻が同じで、件名がそろえて同じか、短い方が長い方に含まれる（2文字以上）。
-    同じカレンダーの中の二重登録も、家用と個人用の写しも数える。"""
+    """既存の狭い写し判定。新しい関係分類には relate_events を使う。"""
     if a.all_day or b.all_day or a.start != b.start:
         return False
     if a.end != b.end and abs((a.end - b.end).total_seconds()) > 15 * 60:
@@ -144,7 +207,7 @@ def is_duplicate(a: Event, b: Event) -> bool:
 
 
 def find_duplicates(events: list[Event]) -> list[tuple[Event, Event]]:
-    """ダブり（同じカレンダーの中の二重登録・家用と個人用の写し・件名の少しの違い）。何も消さない。"""
+    """既存互換の写し確認。入力から予定を削除しない。"""
     evs = [e for e in events if not e.all_day]
     out = []
     for i, a in enumerate(evs):
