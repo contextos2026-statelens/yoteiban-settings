@@ -254,15 +254,19 @@ def build_report(
         item for item in pending if item["id"] not in added_ids
     ]
     completed_text = (completed or "").strip()
-    additional_setup_required = (
-        not completed_text
-        or version_less(completed_text, current)
-        or bool(pending)
+    memory_values = memory or {}
+    initial_marker = any(
+        memory_values.get(key) for key in ("in_initial_setup", "initial_setup_done", "初回設定済み")
+    ) or any(str(key).startswith("初回設定済み（") and value for key, value in memory_values.items())
+    initial_setup_required = not completed_text and not initial_marker
+    additional_setup_required = (bool(completed_text) or initial_marker) and (
+        version_less(resolved_completed_version(catalog, completed), current) or bool(pending)
     )
     return {
         "completed_version": resolved_completed_version(catalog, completed),
         "current_version": current,
         "additional_setup_required": additional_setup_required,
+        "initial_setup_required": initial_setup_required,
         "added": [item["id"] for item in added],
         "pending": [item["id"] for item in pending],
         "questions": pending,
@@ -296,6 +300,8 @@ def main(argv: list[str] | None = None) -> int:
     out = {
         "completed_version": report["completed_version"],
         "current_version": report["current_version"],
+        "additional_setup_required": report["additional_setup_required"],
+        "initial_setup_required": report["initial_setup_required"],
         "added": report["added"],
         "pending": report["pending"],
         "questions": [

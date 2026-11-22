@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 import re
 import unicodedata
-from difflib import SequenceMatcher
 
 JST = timezone(timedelta(hours=9))
 
@@ -105,8 +104,6 @@ def find_conflicts(events: list[Event], owner_only: bool = True) -> list[tuple[E
             if owner_only and a.owner == "unknown" and b.owner == "unknown":
                 continue
             relation = relate_events(a, b)
-            if b.start >= a.end and relation != RELATION_CONFLICT:
-                break
             if relation == RELATION_CONFLICT or (overlaps(a, b) and relation == RELATION_SEPARATE):
                 out.append((a, b))
     return out
@@ -166,11 +163,12 @@ def relate_events(a: Event, b: Event, slack_minutes: int = 15) -> str:
     na, nb = norm_text(a.title), norm_text(b.title)
     if not na or not nb:
         return RELATION_SEPARATE
-    contained_name = na == nb or na in nb or nb in na
-    similar_name = contained_name or (min(len(na), len(nb)) >= 3 and SequenceMatcher(None, na, nb).ratio() >= .78)
+    short, long_ = sorted((na, nb), key=len)
+    similar_name = na == nb or (len(short) >= 3 and (long_.startswith(short) or long_.endswith(short)))
     same_day = a.start.astimezone(JST).date() == b.start.astimezone(JST).date()
     if not same_day or not similar_name:
         return RELATION_SEPARATE
+    same_calendar = a.calendar == b.calendar
     location_conflict = bool(a.location and b.location and norm_text(a.location) != norm_text(b.location))
     starts_close = abs((a.start - b.start).total_seconds()) <= slack_minutes * 60
     ends_close = abs((a.end - b.end).total_seconds()) <= slack_minutes * 60
@@ -180,6 +178,10 @@ def relate_events(a: Event, b: Event, slack_minutes: int = 15) -> str:
                                   (b.start <= a.start and a.end <= b.end)):
         if (a.start, a.end) != (b.start, b.end):
             return RELATION_CONTAINS
+    if same_calendar:
+        gap = max(a.start, b.start) - min(a.end, b.end)
+        if gap >= timedelta(minutes=30):
+            return RELATION_SEPARATE
     return RELATION_CONFLICT
 
 

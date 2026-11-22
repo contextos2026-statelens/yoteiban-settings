@@ -21,7 +21,7 @@ class NightlyRelationTests(unittest.TestCase):
         self.assertFalse(any(item["kind"] == "重なり" for item in result["morning"]))
         self.assertFalse(any(item["kind"] == "準備不足" for item in result["morning"]))
         self.assertFalse(any(item["kind"] == "作業量の目安" for item in result["morning"]))
-        self.assertTrue(any(item["kind"] == "食い違い" for item in result["morning"]))
+        self.assertFalse(any(item["kind"] == "食い違い" for item in result["morning"]))
 
 
 if __name__ == "__main__":
