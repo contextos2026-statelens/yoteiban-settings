@@ -72,6 +72,11 @@
       "note": "iMessage受信経路、同意、連携ボットの目印、送信時の名乗り設定を追加。初回・追加設定とも同じ質問カタログを使う。"
     },
     {
+      "version": "1.0.48",
+      "added_question_ids": ["reminder_cleanup"],
+      "note": "予定ばん作成リマインダーの片づけ方を初回・追加設定で確認する。"
+    },
+    {
       "version": "1.0.43",
       "added_question_ids": [
         "mac_watch_connection_prep",
@@ -686,6 +691,16 @@
         }
       ],
       "integration": "reminder_reader"
+    },
+    {
+      "id": "reminder_cleanup",
+      "added_in": "1.0.48",
+      "title": "リマインダーの片づけ",
+      "memory_key": "reminder_cleanup",
+      "aliases": ["リマインダーの整理"],
+      "in_initial_setup": true,
+      "setup_question": "44",
+      "default": "完了にするだけ"
     },
     {
       "id": "relay_bot_update_use",

@@ -14,7 +14,7 @@ class SchemaTests(unittest.TestCase):
     def tearDown(self): self.conn.close(); self.tmp.cleanup()
     def test_migrate_twice(self):
         migrate(self.conn); migrate(self.conn)
-        self.assertEqual(self.conn.execute('select count(*) from schema_version').fetchone()[0], 4)
+        self.assertEqual(self.conn.execute('select count(*) from schema_version').fetchone()[0], 5)
     def test_reject_unknown_status(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.conn.execute("insert into cases(case_id,kind,title,status,created_at,updated_at) values('c','予定','予定','unknown','now','now')")
@@ -44,7 +44,7 @@ class SchemaTests(unittest.TestCase):
             self.assertNotIn("location", names)
             migrate(conn)
             versions = [row[0] for row in conn.execute("SELECT version FROM schema_version ORDER BY version")]
-            self.assertEqual(versions, [1, 2, 3, 4])
+            self.assertEqual(versions, [1, 2, 3, 4, 5])
             cases = {row[1]: row[2] for row in conn.execute("PRAGMA table_info(cases)")}
             inputs = {row[1]: row[2] for row in conn.execute("PRAGMA table_info(raw_inputs)")}
             for col in ("location", "duration_min", "counterpart", "inferred_fields", "tentative", "reply_by"):
