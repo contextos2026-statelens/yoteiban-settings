@@ -80,6 +80,14 @@ def _reason(ledger, row, at):
     return None
 
 
+def _dedicated_lists(settings):
+    """Return only configured reminder list identifiers accepted for cleanup."""
+    configured = settings.get("move_reminder_list")
+    if isinstance(configured, str) and configured.strip():
+        return {configured.strip()}
+    return {"予定ばん"}
+
+
 def plan(ledger, settings, now, reminders):
     """安全な処理候補を返す。外部操作は呼び出し側が読戻し後に実行する。"""
     at = _date(now)
@@ -90,12 +98,13 @@ def plan(ledger, settings, now, reminders):
         return {"complete": [], "delete": [], "pending": 0}
     if mode not in {"完了にするだけ", "片づける（完了→7日後に削除）"}:
         raise ValueError("reminder_cleanup の設定が不正です")
+    dedicated_lists = _dedicated_lists(settings)
     index_created(ledger, now)
     items = {r.get("id"): r for r in reminders if isinstance(r, dict) and isinstance(r.get("id"), str)}
     complete, delete = [], []
     rows = ledger.conn.execute("SELECT * FROM reminder_cleanup WHERE deleted_at IS NULL AND mismatch_at IS NULL").fetchall()
     for row in rows:
-        if row["list_name"] == "テスト":
+        if row["list_name"] not in dedicated_lists:
             continue
         item = items.get(row["reminder_id"])
         if not item or item.get("list_name", item.get("list_id")) != row["list_name"]:
@@ -109,7 +118,9 @@ def plan(ledger, settings, now, reminders):
                 complete.append(dict(row))
         elif row["completed_at"] and mode == "片づける（完了→7日後に削除）":
             completed = _date(row["completed_at"])
-            if completed and at >= completed + timedelta(days=7):
+            created = _date(row["created_at"])
+            if (completed and created and at >= completed + timedelta(days=7)
+                    and at >= created + timedelta(days=7)):
                 delete.append(dict(row))
     return {"complete": complete, "delete": delete, "pending": 0}
 
@@ -130,14 +141,21 @@ def record_mismatch(ledger, reminder_id, at):
     ledger.conn.commit()
 
 
-def deletion_matches(ledger, reminder_id, fresh_item, at):
+def deletion_matches(ledger, reminder_id, fresh_item, at, settings=None):
     """IOSReadReminders の直前読戻しを検証。相違は消さずに台帳へ残す。"""
+    settings = settings or {}
+    if settings.get("reminder_cleanup", "完了にするだけ") != "片づける（完了→7日後に削除）":
+        return False
     row = ledger.conn.execute("SELECT * FROM reminder_cleanup WHERE reminder_id=?", (reminder_id,)).fetchone()
-    if row is None or row["list_name"] == "テスト" or not row["completed_at"]:
+    if (row is None or row["list_name"] not in _dedicated_lists(settings)
+            or not row["completed_at"]):
         return False
     completed = _date(row["completed_at"])
+    created = _date(row["created_at"])
     current = _date(at)
-    if (completed is None or current is None or current < completed + timedelta(days=7)
+    if (completed is None or created is None or current is None
+            or current < completed + timedelta(days=7)
+            or current < created + timedelta(days=7)
             or not isinstance(fresh_item, dict)
             or fresh_item.get("id") != row["reminder_id"]
             or fresh_item.get("title") != row["title"]
